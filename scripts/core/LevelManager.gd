@@ -39,7 +39,8 @@ func create_tile(pos: Vector2i) -> Tile:
 
 	tile.grid_pos = pos
 	tile.position = Vector3(pos.x * TILE_SIZE, 0, pos.y * TILE_SIZE)
-	tile.clicked.connect(_on_tile_clicked)
+
+	tile.exit_clicked.connect(_on_exit_clicked)
 
 	tiles[pos] = tile
 	return tile
@@ -99,3 +100,32 @@ func generate_neighbors(tile: Tile):
 					new_tile.exits.append(d)
 
 		new_tile.redraw_exit_markers()
+		
+func _on_exit_clicked(tile: Tile, dir: Vector2i):
+	var new_pos: Vector2i = tile.grid_pos + dir
+
+	if tiles.has(new_pos):
+		return
+
+	var new_tile := create_tile(new_pos)
+
+	new_tile.exits.clear()
+	new_tile.exits.append(-dir) # вход обязателен
+
+	for d: Vector2i in DIRECTIONS:
+		if d == -dir:
+			continue
+
+		var neighbor_pos: Vector2i = new_tile.grid_pos + d
+
+		# 🔒 если сосед существует — ТОЛЬКО если он уже имеет выход
+		if tiles.has(neighbor_pos):
+			var neighbor: Tile = tiles[neighbor_pos] as Tile
+			if neighbor.exits.has(-d):
+				new_tile.exits.append(d)
+		else:
+			# 🎲 если соседа нет — можно рандомно
+			if randf() < 0.4:
+				new_tile.exits.append(d)
+
+	new_tile.redraw_exit_markers()
