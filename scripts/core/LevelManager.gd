@@ -110,22 +110,43 @@ func _on_exit_clicked(tile: Tile, dir: Vector2i):
 	var new_tile := create_tile(new_pos)
 
 	new_tile.exits.clear()
-	new_tile.exits.append(-dir) # вход обязателен
 
+	# 1️⃣ обязательный вход
+	new_tile.exits.append(-dir)
+
+	# 2️⃣ обязательные выходы к существующим соседям
 	for d: Vector2i in DIRECTIONS:
 		if d == -dir:
 			continue
 
-		var neighbor_pos: Vector2i = new_tile.grid_pos + d
-
-		# 🔒 если сосед существует — ТОЛЬКО если он уже имеет выход
+		var neighbor_pos: Vector2i = new_pos + d
 		if tiles.has(neighbor_pos):
 			var neighbor: Tile = tiles[neighbor_pos] as Tile
 			if neighbor.exits.has(-d):
 				new_tile.exits.append(d)
-		else:
-			# 🎲 если соседа нет — можно рандомно
-			if randf() < 0.4:
-				new_tile.exits.append(d)
+
+	# 3️⃣ добиваем выходы, чтобы не был тупик
+	var desired_min := 2
+	var desired_max := 4
+
+	var shuffled := DIRECTIONS.duplicate()
+	shuffled.shuffle()
+
+	for d: Vector2i in shuffled:
+		if new_tile.exits.has(d):
+			continue
+		if new_tile.exits.size() >= desired_max:
+			break
+
+		var neighbor_pos: Vector2i = new_pos + d
+
+		# если сосед есть, но он не ждёт вход — нельзя
+		if tiles.has(neighbor_pos):
+			continue
+
+		# шанс добавить
+		var chance := 0.7 if new_tile.exits.size() < desired_min else 0.35
+		if randf() < chance:
+			new_tile.exits.append(d)
 
 	new_tile.redraw_exit_markers()
