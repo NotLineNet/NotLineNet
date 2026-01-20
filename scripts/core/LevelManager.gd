@@ -4,7 +4,7 @@ class_name LevelManager
 @export var tile_scene: PackedScene
 
 const TILE_SIZE := 2.0
-const DIRECTIONS := [
+const DIRECTIONS: Array[Vector2i] = [
 	Vector2i.UP,
 	Vector2i.DOWN,
 	Vector2i.LEFT,
@@ -17,23 +17,22 @@ func _ready():
 	randomize()
 	create_start_tile()
 
+# ===== СТАРТОВЫЙ ТАЙЛ =====
+
 func create_start_tile():
-	var tile := create_tile(Vector2i.ZERO)
+	var tile: Tile = create_tile(Vector2i.ZERO)
 
 	tile.exits.clear()
-
-	var dirs := DIRECTIONS.duplicate()
-	dirs.shuffle()
-
-	var count := randi_range(1, 4)
-	for i in count:
-		tile.exits.append(dirs[i])
+	for d: Vector2i in DIRECTIONS:
+		tile.exits.append(d)
 
 	tile.redraw_exit_markers()
 
+# ===== СОЗДАНИЕ ТАЙЛА =====
+
 func create_tile(pos: Vector2i) -> Tile:
 	if tiles.has(pos):
-		return tiles[pos]
+		return tiles[pos] as Tile
 
 	var tile := tile_scene.instantiate() as Tile
 	add_child(tile)
@@ -45,25 +44,58 @@ func create_tile(pos: Vector2i) -> Tile:
 	tiles[pos] = tile
 	return tile
 
+# ===== КЛИК =====
+
 func _on_tile_clicked(tile: Tile):
 	generate_neighbors(tile)
 
+# ===== ГЕНЕРАЦИЯ СОСЕДЕЙ =====
+
 func generate_neighbors(tile: Tile):
-	for dir in tile.exits:
-		var new_pos := tile.grid_pos + dir
+	for dir: Vector2i in tile.exits:
+		var new_pos: Vector2i = tile.grid_pos + dir
+
 		if tiles.has(new_pos):
 			continue
 
-		var new_tile := create_tile(new_pos)
+		var allowed := true
 
-		# вход обратно
-		new_tile.exits = [-dir]
+		for d: Vector2i in DIRECTIONS:
+			var check_pos: Vector2i = new_pos + d
 
-		# случайные дополнительные выходы
-		for d in DIRECTIONS:
+			if not tiles.has(check_pos):
+				continue
+
+			var neighbor: Tile = tiles[check_pos] as Tile
+
+			# если сосед ждёт вход, а мы его не даём — запрет
+			if neighbor.exits.has(-d) and d != -dir:
+				continue
+
+			if not neighbor.exits.has(-d) and d == -dir:
+				allowed = false
+				break
+
+		if not allowed:
+			continue
+
+		var new_tile: Tile = create_tile(new_pos)
+
+		new_tile.exits.clear()
+		new_tile.exits.append(-dir) # вход обязателен
+
+		for d: Vector2i in DIRECTIONS:
 			if d == -dir:
 				continue
-			if randf() < 0.4:
-				new_tile.exits.append(d)
+
+			var neighbor_pos: Vector2i = new_pos + d
+
+			if tiles.has(neighbor_pos):
+				var neighbor: Tile = tiles[neighbor_pos] as Tile
+				if neighbor.exits.has(-d):
+					new_tile.exits.append(d)
+			else:
+				if randf() < 0.4:
+					new_tile.exits.append(d)
 
 		new_tile.redraw_exit_markers()
