@@ -29,7 +29,7 @@ func create_start_tile():
 	for i in count:
 		tile.exits.append(dirs[i])
 
-	tile.redraw_exit_markers()
+	tile.redraw_exit_markers()S
 
 func create_tile(pos: Vector2i) -> Tile:
 	if tiles.has(pos):
