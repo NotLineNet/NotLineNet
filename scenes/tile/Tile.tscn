@@ -1,0 +1,30 @@
+[gd_scene load_steps=6 format=3 uid="uid://34iqiybudqgv"]
+
+[ext_resource type="Script" uid="uid://bq4rut2su25fc" path="res://scripts/core/Tile.gd" id="1_el6ae"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3nhhd"]
+albedo_color = Color(0.7581918, 0.7581918, 0.7581917, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_3nhhd"]
+material = SubResource("StandardMaterial3D_3nhhd")
+size = Vector3(1, 0.1, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_3nhhd"]
+size = Vector3(1, 0.1, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_el6ae"]
+size = Vector3(1, 0.2, 1)
+
+[node name="Tile" type="Node3D"]
+script = ExtResource("1_el6ae")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_3nhhd")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_3nhhd")
+
+[node name="Area3D" type="Area3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D"]
+shape = SubResource("BoxShape3D_el6ae")
