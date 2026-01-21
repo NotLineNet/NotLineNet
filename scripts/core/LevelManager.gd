@@ -430,6 +430,11 @@ func hide_all_tiles_except(visible_positions: Array[Vector2i]):
 # ===== ОБРАБОТКА КЛИКА =====
 
 func _on_exit_clicked(tile: Tile, dir: Vector2i):
+	# Проверяем наличие очков действий у игрока
+	# Если нет очков (action_points <= 0), не показываем следующий тайл
+	if player and player.action_points <= 0:
+		return
+	
 	# Раскрываем следующий тайл в направлении клика
 	var current_pos := tile.grid_pos
 	var next_pos := current_pos + dir

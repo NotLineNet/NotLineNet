@@ -3,10 +3,16 @@ class_name Player
 
 const MOVE_DURATION := 0.2  # Длительность анимации движения в секундах
 
+signal action_points_changed(new_value: int)
+
+const MAX_ACTION_POINTS := 3
+const MIN_ACTION_POINTS := 0
+
 var current_tile: Tile
 var previous_tile: Tile  # Для возврата на предыдущий тайл
 var is_moving := false
 var level_manager: LevelManager
+var action_points: int = 3  # Количество очков действий
 
 # Размер игрока - половина размера тайла (TILE_SIZE = 2.0, значит игрок = 1.0)
 const PLAYER_SIZE := 1.0
@@ -75,6 +81,10 @@ func _on_exit_clicked(tile: Tile, dir: Vector2i):
 	if tile != current_tile or is_moving:
 		return
 	
+	# Проверяем наличие очков действий
+	if action_points <= MIN_ACTION_POINTS:
+		return
+	
 	# Проверяем, что в этом направлении есть выход
 	if not tile.exits.has(dir):
 		return
@@ -97,6 +107,10 @@ func _on_exit_clicked(tile: Tile, dir: Vector2i):
 func move_to_tile(target_tile: Tile):
 	"""Двигает игрока на указанный тайл с анимацией"""
 	if is_moving or not target_tile:
+		return
+	
+	# Проверяем наличие очков действий
+	if action_points <= MIN_ACTION_POINTS:
 		return
 	
 	is_moving = true
@@ -134,6 +148,9 @@ func move_to_tile(target_tile: Tile):
 	if not current_tile.visible:
 		current_tile.show_tile()
 	
+	# Вычитаем очко действия при переходе на новый тайл
+	spend_action_point()
+	
 	is_moving = false
 
 func can_move_back() -> bool:
@@ -148,3 +165,15 @@ func move_back():
 	var temp_tile := previous_tile
 	previous_tile = current_tile
 	move_to_tile(temp_tile)
+
+func add_action_point():
+	"""Добавляет одно очко действия (максимум MAX_ACTION_POINTS)"""
+	if action_points < MAX_ACTION_POINTS:
+		action_points += 1
+		action_points_changed.emit(action_points)
+
+func spend_action_point():
+	"""Тратит одно очко действия (минимум MIN_ACTION_POINTS)"""
+	if action_points > MIN_ACTION_POINTS:
+		action_points -= 1
+		action_points_changed.emit(action_points)
