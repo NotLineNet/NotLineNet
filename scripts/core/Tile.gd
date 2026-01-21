@@ -14,6 +14,9 @@ const EXIT_OFFSET := 0.9
 const HOVER_SCALE := 1.2
 const NORMAL_SCALE := 1.0
 
+const GATE_COLOR_ACTIVE := Color(0.2, 1.0, 0.2)
+const GATE_COLOR_INACTIVE := Color(0.5, 0.5, 0.5)
+
 func set_color(color: Color):
 	var mesh_instance := get_node_or_null("MeshInstance3D")
 	if mesh_instance:
@@ -29,6 +32,12 @@ func _ready():
 	
 	# Находим игрока в дереве сцены
 	_find_player()
+	
+	# Если игрок уже на этом тайле (например, при старте), обновляем цвет
+	if player:
+		var player_pos = Vector2i(round(player.global_position.x / 2.0), round(player.global_position.z / 2.0))
+		if player_pos == grid_pos:
+			on_player_entered()
 
 func _find_player():
 	"""Находит игрока в дереве сцены"""
@@ -58,12 +67,13 @@ func redraw_exit_markers():
 		idx += 1
 
 		var mesh := MeshInstance3D.new()
+		mesh.name = "MeshInstance3D"
 		var box := BoxMesh.new()
 		box.size = EXIT_MARKER_SIZE
 		mesh.mesh = box
 
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.2, 1.0, 0.2)
+		mat.albedo_color = _get_current_gate_color()
 		mesh.material_override = mat
 
 		marker.add_child(mesh)
@@ -90,6 +100,34 @@ func redraw_exit_markers():
 
 		add_child(marker)
 		exit_markers[dir] = marker
+
+func _get_current_gate_color() -> Color:
+	# Если игрок не определен, ворота серые
+	if not player:
+		return GATE_COLOR_INACTIVE
+		
+	# Проверяем позицию, так как ссылка на current_tile может быть еще не обновлена
+	var player_pos = Vector2i(round(player.global_position.x / 2.0), round(player.global_position.z / 2.0))
+	if player_pos == grid_pos:
+		return GATE_COLOR_ACTIVE
+		
+	return GATE_COLOR_INACTIVE
+
+func on_player_entered():
+	_update_gate_colors(GATE_COLOR_ACTIVE)
+
+func on_player_exited():
+	_update_gate_colors(GATE_COLOR_INACTIVE)
+
+func _update_gate_colors(color: Color):
+	for marker in exit_markers.values():
+		var mesh = marker.get_node_or_null("MeshInstance3D")
+		if mesh:
+			if not mesh.material_override:
+				mesh.material_override = StandardMaterial3D.new()
+			mesh.material_override.albedo_color = color
+		else:
+			print("Tile %s: MeshInstance3D not found in marker %s" % [str(grid_pos), marker.name])
 
 func _on_exit_marker_mouse_entered(dir: Vector2i):
 	"""Обработчик наведения мыши на маркер выхода"""

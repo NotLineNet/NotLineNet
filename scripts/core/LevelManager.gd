@@ -488,10 +488,14 @@ func create_player():
 	# Размещаем игрока на зеленом тайле
 	var green_tile: Tile = tiles[green_tile_pos] as Tile
 	if green_tile:
+		# Сначала обновляем ссылки на игрока во всех тайлах
+		_update_tile_player_references()
+		
+		# Затем инициализируем игрока на тайле (это вызовет on_player_entered)
 		player.initialize_on_tile(green_tile)
 		
-		# Обновляем ссылки на игрока во всех тайлах
-		_update_tile_player_references()
+		# Для надежности принудительно обновляем маркеры стартового тайла
+		green_tile.redraw_exit_markers()
 
 func _update_tile_player_references():
 	"""Обновляет ссылки на игрока во всех тайлах"""

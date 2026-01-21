@@ -47,6 +47,9 @@ func initialize_on_tile(tile: Tile):
 	
 	# Подключаемся к сигналам тайла
 	_connect_to_tile(tile)
+	
+	# Принудительно обновляем цвет ворот на текущем тайле
+	tile.on_player_entered()
 
 func _connect_to_tile(tile: Tile):
 	"""Подключается к сигналам тайла для обработки кликов на ворота"""
@@ -98,6 +101,10 @@ func move_to_tile(target_tile: Tile):
 	
 	is_moving = true
 	
+	# Уведомляем текущий тайл, что игрок уходит (меняем цвет на серый)
+	if current_tile:
+		current_tile.on_player_exited()
+	
 	# Отключаемся от текущего тайла
 	_disconnect_from_tile(current_tile)
 	
@@ -119,6 +126,9 @@ func move_to_tile(target_tile: Tile):
 	
 	# Подключаемся к новому тайлу
 	_connect_to_tile(current_tile)
+	
+	# Уведомляем новый тайл, что игрок пришел
+	current_tile.on_player_entered()
 	
 	# Показываем тайл, если он скрыт
 	if not current_tile.visible:
