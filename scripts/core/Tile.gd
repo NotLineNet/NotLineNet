@@ -2,12 +2,30 @@ extends Node3D
 class_name Tile
 
 signal exit_clicked(tile: Tile, dir: Vector2i)
+signal tile_clicked(tile: Tile)
 
 var grid_pos: Vector2i
 var exits: Array[Vector2i] = []
 
 const EXIT_MARKER_SIZE := Vector3(0.3, 0.3, 0.3)
 const EXIT_OFFSET := 0.9
+
+func set_color(color: Color):
+	var mesh_instance := get_node_or_null("MeshInstance3D")
+	if mesh_instance:
+		var material := StandardMaterial3D.new()
+		material.albedo_color = color
+		mesh_instance.material_override = material
+
+func _ready():
+	# Подключаем обработчик клика на Area3D
+	var area := get_node_or_null("Area3D")
+	if area:
+		area.input_event.connect(_on_area_input_event)
+
+func _on_area_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int):
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		tile_clicked.emit(self)
 
 func redraw_exit_markers():
 	for child in get_children():
@@ -50,3 +68,9 @@ func redraw_exit_markers():
 		)
 
 		add_child(marker)
+
+func hide_tile():
+	visible = false
+
+func show_tile():
+	visible = true
