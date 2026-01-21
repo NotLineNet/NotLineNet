@@ -2,12 +2,9 @@
 
 [ext_resource type="Script" uid="uid://bhdb51wd8kgtd" path="res://scripts/core/Player.gd" id="1_wr5hl"]
 
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_o8nba"]
+[sub_resource type="SphereMesh" id="SphereMesh_o8nba"]
+radius = 0.5
+height = 1.0
 
 [node name="Player" type="Node3D"]
 script = ExtResource("1_wr5hl")
-
-[node name="Player" type="Node3D" parent="."]
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Player"]
-mesh = SubResource("CapsuleMesh_o8nba")

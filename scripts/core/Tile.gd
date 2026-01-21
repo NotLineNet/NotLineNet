@@ -6,9 +6,13 @@ signal tile_clicked(tile: Tile)
 
 var grid_pos: Vector2i
 var exits: Array[Vector2i] = []
+var exit_markers: Dictionary = {}  # Хранит маркеры выходов по направлению
+var player: Player  # Ссылка на игрока
 
 const EXIT_MARKER_SIZE := Vector3(0.3, 0.3, 0.3)
 const EXIT_OFFSET := 0.9
+const HOVER_SCALE := 1.2
+const NORMAL_SCALE := 1.0
 
 func set_color(color: Color):
 	var mesh_instance := get_node_or_null("MeshInstance3D")
@@ -22,20 +26,35 @@ func _ready():
 	var area := get_node_or_null("Area3D")
 	if area:
 		area.input_event.connect(_on_area_input_event)
+	
+	# Находим игрока в дереве сцены
+	_find_player()
+
+func _find_player():
+	"""Находит игрока в дереве сцены"""
+	var tree := get_tree()
+	if tree:
+		player = tree.get_first_node_in_group("player") as Player
+		if not player:
+			# Пробуем найти через путь
+			player = get_node_or_null("../../PlayerRoot/Player") as Player
 
 func _on_area_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int):
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		tile_clicked.emit(self)
 
 func redraw_exit_markers():
+	# Очищаем старые маркеры
 	for child in get_children():
 		if child.name.begins_with("ExitMarker"):
 			child.queue_free()
+	exit_markers.clear()
 
 	var idx := 0
 	for dir: Vector2i in exits:
 		var marker := Area3D.new()
 		marker.name = "ExitMarker_%d" % idx
+		marker.input_ray_pickable = true  # Включаем обнаружение мыши
 		idx += 1
 
 		var mesh := MeshInstance3D.new()
@@ -50,7 +69,9 @@ func redraw_exit_markers():
 		marker.add_child(mesh)
 
 		var shape := CollisionShape3D.new()
-		shape.shape = BoxShape3D.new()
+		var box_shape := BoxShape3D.new()
+		box_shape.size = EXIT_MARKER_SIZE
+		shape.shape = box_shape
 		marker.add_child(shape)
 
 		marker.position = Vector3(
@@ -58,16 +79,62 @@ func redraw_exit_markers():
 			0.3,
 			dir.y * EXIT_OFFSET
 		)
+		
+		# Инициализируем масштаб
+		marker.scale = Vector3.ONE * NORMAL_SCALE
 
-		marker.input_event.connect(
-			func(_cam, event, _pos, _norm, _idx):
-				if event is InputEventMouseButton \
-				and event.pressed \
-				and event.button_index == MOUSE_BUTTON_LEFT:
-					exit_clicked.emit(self, dir)
-		)
+		# Подключаем обработчики событий мыши
+		marker.mouse_entered.connect(_on_exit_marker_mouse_entered.bind(dir))
+		marker.mouse_exited.connect(_on_exit_marker_mouse_exited.bind(dir))
+		marker.input_event.connect(_on_exit_marker_input_event.bind(dir))
 
 		add_child(marker)
+		exit_markers[dir] = marker
+
+func _on_exit_marker_mouse_entered(dir: Vector2i):
+	"""Обработчик наведения мыши на маркер выхода"""
+	# Увеличиваем масштаб только если игрок на этом тайле и не движется
+	if _can_interact_with_exits():
+		var marker: Area3D = exit_markers.get(dir) as Area3D
+		if marker:
+			var tween := create_tween()
+			tween.set_ease(Tween.EASE_OUT)
+			tween.set_trans(Tween.TRANS_QUAD)
+			tween.tween_property(marker, "scale", Vector3.ONE * HOVER_SCALE, 0.1)
+
+func _on_exit_marker_mouse_exited(dir: Vector2i):
+	"""Обработчик ухода мыши с маркера выхода"""
+	var marker: Area3D = exit_markers.get(dir) as Area3D
+	if marker:
+		var tween := create_tween()
+		tween.set_ease(Tween.EASE_OUT)
+		tween.set_trans(Tween.TRANS_QUAD)
+		tween.tween_property(marker, "scale", Vector3.ONE * NORMAL_SCALE, 0.1)
+
+func _on_exit_marker_input_event(_cam: Node, event: InputEvent, _pos: Vector3, _norm: Vector3, _idx: int, dir: Vector2i):
+	"""Обработчик клика на маркер выхода"""
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		# Проверяем, что можно взаимодействовать с выходами
+		if _can_interact_with_exits():
+			# Возвращаем масштаб к нормальному при клике
+			var marker: Area3D = exit_markers.get(dir) as Area3D
+			if marker:
+				var tween := create_tween()
+				tween.set_ease(Tween.EASE_OUT)
+				tween.set_trans(Tween.TRANS_QUAD)
+				tween.tween_property(marker, "scale", Vector3.ONE * NORMAL_SCALE, 0.1)
+			
+			exit_clicked.emit(self, dir)
+
+func _can_interact_with_exits() -> bool:
+	"""Проверяет, можно ли взаимодействовать с выходами (игрок на тайле и не движется)"""
+	if not player:
+		_find_player()
+		if not player:
+			return false
+	
+	# Проверяем, что игрок на этом тайле и не движется
+	return player.current_tile == self and not player.is_moving
 
 func hide_tile():
 	visible = false

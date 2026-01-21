@@ -2,6 +2,7 @@ extends Node3D
 class_name LevelManager
 
 @export var tile_scene: PackedScene
+@export var player_scene: PackedScene
 
 const TILE_SIZE := 2.0
 const GRID_SIZE := 21
@@ -18,6 +19,7 @@ var red_tile_pos: Vector2i
 var path_lines: Array[Node3D] = []  # Для хранения линий путей
 var green_path_lines: Array[Node3D] = []  # Линии зеленого пути
 var red_path_lines: Array[Node3D] = []  # Линии красного пути
+var player: Player
 
 func _ready():
 	randomize()
@@ -75,6 +77,9 @@ func create_grid():
 	
 	# Скрываем все тайлы, кроме красного и зеленого
 	hide_all_tiles_except([green_tile_pos, red_tile_pos])
+	
+	# Создаем и размещаем игрока на зеленом тайле
+	create_player()
 
 # ===== УСТАНОВКА ВЫХОДОВ ДЛЯ ТАЙЛА =====
 
@@ -450,3 +455,45 @@ func _on_tile_clicked(tile: Tile):
 	var green_path := find_path(green_tile_pos, target_pos)
 	if green_path.size() > 0:
 		visualize_path(green_path, Color.GREEN, green_path_lines)
+
+# ===== СОЗДАНИЕ ИГРОКА =====
+
+func create_player():
+	"""Создает игрока и размещает его на зеленом тайле"""
+	# Если сцена игрока не задана, создаем его программно
+	if not player_scene:
+		player = Player.new()
+	else:
+		player = player_scene.instantiate() as Player
+	
+	if not player:
+		push_error("Не удалось создать игрока")
+		return
+	
+	# Добавляем игрока в группу для поиска
+	player.add_to_group("player")
+	
+	# Находим PlayerRoot или создаем его
+	var player_root := get_node_or_null("../PlayerRoot")
+	if not player_root:
+		player_root = Node3D.new()
+		player_root.name = "PlayerRoot"
+		get_parent().add_child(player_root)
+	
+	player_root.add_child(player)
+	
+	# Устанавливаем ссылку на LevelManager
+	player.level_manager = self
+	
+	# Размещаем игрока на зеленом тайле
+	var green_tile: Tile = tiles[green_tile_pos] as Tile
+	if green_tile:
+		player.initialize_on_tile(green_tile)
+		
+		# Обновляем ссылки на игрока во всех тайлах
+		_update_tile_player_references()
+
+func _update_tile_player_references():
+	"""Обновляет ссылки на игрока во всех тайлах"""
+	for tile in tiles.values():
+		(tile as Tile).player = player
