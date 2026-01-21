@@ -24,10 +24,6 @@ Directions="*res://scripts/core/Directions.gd"
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/ai_assistant_hub/plugin.cfg")
-
 [input]
 
 camera_grag={
@@ -40,10 +36,3 @@ select_tile={
 "events": [Object(InputEventMouseButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"button_mask":0,"position":Vector2(0, 0),"global_position":Vector2(0, 0),"factor":1.0,"button_index":1,"canceled":false,"pressed":false,"double_click":false,"script":null)
 ]
 }
-
-[plugins]
-
-ai_assistant_hub/llm_api="gemini_api"
-ai_assistant_hub/preferences/thinking_target=0
-ai_assistant_hub/preferences/skip_greeting=false
-ai_assistant_hub/preferences/always_scroll_to_bottom=false
