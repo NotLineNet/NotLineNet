@@ -3,9 +3,12 @@ class_name LevelManager
 
 @export var tile_scene: PackedScene
 @export var player_scene: PackedScene
+@export var circle_radius: int = 9
+@export var path_line_color: Color = Color(1, 0.75, 0.25, 0.9)
+@export var path_line_thickness: float = 0.25
+@export var path_line_height: float = 0.12
 
 const TILE_SIZE := 4
-const GRID_SIZE := 21
 const DIRECTIONS: Array[Vector2i] = [
 	Vector2i.UP,
 	Vector2i.DOWN,
@@ -18,80 +21,193 @@ var green_tile_pos: Vector2i
 var red_tile_pos: Vector2i
 var player: Player
 
+var path_debug_root: Node3D
+var path_debug_lines_built: bool = false
+var path_line_material: StandardMaterial3D
+
 func _ready():
 	randomize()
+	_init_path_debug_root()
+	add_to_group("level_manager")
 	create_grid()
 
 # ===== СОЗДАНИЕ СЕТКИ =====
 
 func create_grid():
-	var half_size := GRID_SIZE / 2
-	
-	# Создаем все тайлы сетки (пока без выходов)
-	for x in range(GRID_SIZE):
-		for y in range(GRID_SIZE):
-			var pos := Vector2i(x - half_size, y - half_size)
-			create_tile(pos)
-	
-	# Определяем центральный (зеленый) тайл
-	green_tile_pos = Vector2i(0, 0)
-	var center_tile: Tile = tiles[green_tile_pos] as Tile
-	center_tile.set_color(Color.GREEN)
-	
-	# Создаем один красный тайл со случайной позицией
-	var attempts := 0
-	while attempts < 100:
-		var random_x := randi_range(-half_size, half_size)
-		var random_y := randi_range(-half_size, half_size)
-		red_tile_pos = Vector2i(random_x, random_y)
-		
-		# Не размещаем красный тайл в центре (где зеленый)
-		if red_tile_pos != green_tile_pos:
-			break
-		attempts += 1
-	
+	_clear_path_debug_lines()
+	var radius: int = circle_radius
+	if radius < 1:
+		radius = 1
+	red_tile_pos = Vector2i.ZERO
+	var red_circle := create_circle_tiles(red_tile_pos, radius)
+
 	var red_tile: Tile = tiles[red_tile_pos] as Tile
 	red_tile.set_color(Color.RED)
-	
-	# Устанавливаем 4 выхода для зеленого тайла
-	set_tile_exits(center_tile, green_tile_pos, 4, true)
-	
-	# Устанавливаем 4 выхода для красного тайла
 	set_tile_exits(red_tile, red_tile_pos, 4, true)
-	
+
+	green_tile_pos = _pick_random_boundary_position(red_circle, red_tile_pos, radius)
+	create_circle_tiles(green_tile_pos, radius)
+
+	var green_tile: Tile = tiles[green_tile_pos] as Tile
+	green_tile.set_color(Color.GREEN)
+	set_tile_exits(green_tile, green_tile_pos, 4, true)
+
 	# Создаем связный граф, начиная от зеленого и красного тайлов
 	create_connected_graph(green_tile_pos, red_tile_pos)
-	
+
 	# Гарантируем путь от зеленого до красного
 	ensure_path_between(green_tile_pos, red_tile_pos)
-	
+
 	# Добавляем случайные дополнительные выходы, сохраняя связность
 	add_random_exits()
-	
+
 	# Обновляем маркеры выходов для всех тайлов
 	for tile in tiles.values():
 		(tile as Tile).redraw_exit_markers()
-	
+
 	# Скрываем все тайлы, кроме красного и зеленого
 	hide_all_tiles_except([green_tile_pos, red_tile_pos])
-	
+
 	# Создаем и размещаем игрока на зеленом тайле
 	create_player()
+
+func _init_path_debug_root():
+	if path_debug_root:
+		return
+	path_debug_root = Node3D.new()
+	path_debug_root.name = "PathLines"
+	add_child(path_debug_root)
+	path_debug_root.visible = false
+
+func _grid_to_world(pos: Vector2) -> Vector3:
+	return Vector3(pos.x * TILE_SIZE, 0, pos.y * TILE_SIZE)
+
+func _clear_path_debug_lines():
+	if not path_debug_root:
+		return
+	for child in path_debug_root.get_children():
+		child.queue_free()
+	path_debug_lines_built = false
+
+func _get_path_line_material() -> StandardMaterial3D:
+	if not path_line_material:
+		path_line_material = StandardMaterial3D.new()
+		path_line_material.albedo_color = path_line_color
+		path_line_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		path_line_material.flags_transparent = true
+		path_line_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return path_line_material
+
+func build_path_debug_lines():
+	if not path_debug_root:
+		return
+	_clear_path_debug_lines()
+	var material := _get_path_line_material()
+	for pos_key in tiles.keys():
+		var pos: Vector2i = pos_key as Vector2i
+		var tile := tiles[pos] as Tile
+		for dir in tile.exits:
+			if dir.x < 0 or (dir.x == 0 and dir.y < 0):
+				continue
+			var neighbor_pos: Vector2i = pos + dir
+			if not tiles.has(neighbor_pos):
+				continue
+			var line := MeshInstance3D.new()
+			var mesh := BoxMesh.new()
+			var width := path_line_thickness
+			var length := TILE_SIZE * 0.9
+			var size := Vector3.ZERO
+
+			if dir.x != 0:
+				size.x = length
+			else:
+				size.x = width
+
+			if dir.y != 0:
+				size.z = length
+			else:
+				size.z = width
+
+			size.y = path_line_height
+			mesh.size = size
+			line.mesh = mesh
+			line.material_override = material
+			var midpoint := Vector2(
+				float(pos.x + neighbor_pos.x) / 2.0,
+				float(pos.y + neighbor_pos.y) / 2.0
+			)
+			var center := _grid_to_world(midpoint)
+			center.y = path_line_height * 0.5
+			line.position = center
+			path_debug_root.add_child(line)
+	path_debug_lines_built = true
+
+func set_path_debug_visible(enabled: bool):
+	if not path_debug_root:
+		return
+	if enabled and not path_debug_lines_built:
+		build_path_debug_lines()
+	path_debug_root.visible = enabled
+
+# ===== ПОСТРОЕНИЕ КРУГА =====
+
+func create_circle_tiles(center: Vector2i, radius: int) -> Dictionary:
+	var positions := []
+	var boundary := []
+	var tolerance := 0.8
+
+	for dx in range(-radius, radius + 1):
+		for dy in range(-radius, radius + 1):
+			var offset := Vector2(dx, dy)
+			var distance := offset.length()
+
+			if distance <= radius + 0.5:
+				var pos := center + Vector2i(dx, dy)
+				create_tile(pos)
+				positions.append(pos)
+
+				if abs(distance - radius) <= tolerance:
+					boundary.append(pos)
+
+	return {
+		"positions": positions,
+		"boundary": boundary
+	}
+
+func _pick_random_boundary_position(circle_info: Dictionary, center: Vector2i, radius: int) -> Vector2i:
+	var candidates := []
+
+	for pos in circle_info["boundary"]:
+		if pos != center:
+			candidates.append(pos)
+
+	if candidates.size() == 0:
+		for pos in circle_info["positions"]:
+			if pos != center:
+				candidates.append(pos)
+
+	if candidates.size() == 0:
+		var fallback := center + Vector2i(radius, 0)
+		create_tile(fallback)
+		return fallback
+
+	candidates.shuffle()
+	return candidates[0]
 
 # ===== УСТАНОВКА ВЫХОДОВ ДЛЯ ТАЙЛА =====
 
 func set_tile_exits(tile: Tile, pos: Vector2i, count: int, force_all: bool = false):
 	tile.exits.clear()
-	var half_size := GRID_SIZE / 2
 	var available_dirs: Array[Vector2i] = []
-	
-	# Собираем доступные направления (не выходящие за границы)
+
+	# Собираем доступные направления, где уже есть тайлы
 	for dir: Vector2i in DIRECTIONS:
 		var neighbor_pos: Vector2i = pos + dir
-		# Проверяем, что сосед в пределах сетки
-		if neighbor_pos.x >= -half_size and neighbor_pos.x <= half_size and \
-		   neighbor_pos.y >= -half_size and neighbor_pos.y <= half_size:
+		if tiles.has(neighbor_pos):
 			available_dirs.append(dir)
+
+	if available_dirs.size() == 0:
+		return
 	
 	if force_all:
 		# Для зеленого и красного тайлов - все доступные выходы
@@ -108,7 +224,7 @@ func set_tile_exits(tile: Tile, pos: Vector2i, count: int, force_all: bool = fal
 		# 1 выход - 5% (тупик, минимум), 2 выхода - 30%, 3 выхода - 45%, 4 выхода - 20%
 		var max_exits: int = min(count, available_dirs.size())
 		if max_exits < 1:
-			max_exits = 1
+			max_exits = available_dirs.size()
 		
 		var rand_val := randf()
 		var num_exits: int
@@ -252,7 +368,6 @@ func create_path_between(from_pos: Vector2i, to_pos: Vector2i):
 # ===== ДОБАВЛЕНИЕ СЛУЧАЙНЫХ ВЫХОДОВ =====
 
 func add_random_exits():
-	var half_size := GRID_SIZE / 2
 	
 	for pos in tiles.keys():
 		# Пропускаем зеленый и красный тайлы (у них уже 4 выхода)
@@ -269,12 +384,8 @@ func add_random_exits():
 		var available_dirs: Array[Vector2i] = []
 		for dir: Vector2i in DIRECTIONS:
 			var neighbor_pos: Vector2i = pos + dir
-			# Проверяем границы
-			if neighbor_pos.x >= -half_size and neighbor_pos.x <= half_size and \
-			   neighbor_pos.y >= -half_size and neighbor_pos.y <= half_size:
-				# Если выхода еще нет, добавляем в список доступных
-				if not tile.exits.has(dir):
-					available_dirs.append(dir)
+			if tiles.has(neighbor_pos) and not tile.exits.has(dir):
+				available_dirs.append(dir)
 		
 		# Случайно добавляем дополнительные выходы с низкой вероятностью
 		# (чтобы сохранить больше тупиков)

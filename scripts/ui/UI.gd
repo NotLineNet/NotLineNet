@@ -2,12 +2,18 @@ extends PanelContainer
 
 @onready var action_points_container: HBoxContainer = $HBoxContainer/ActionPoints
 @onready var point_template: ColorRect = $HBoxContainer/ActionPoints/Point
+@onready var way_button: Button = $HBoxContainer/WayButton
 
 var player: Player
+var paths_visible: bool = false
+var level_manager: LevelManager
 
 func _ready():
 	# Находим игрока через группу
 	_find_player()
+	_find_level_manager()
+	way_button.pressed.connect(_on_way_button_pressed)
+	_update_way_button_text()
 
 func _find_player():
 	"""Находит игрока в дереве сцены"""
@@ -57,6 +63,33 @@ func _on_od_button_pressed() -> void:
 	# Если игрок найден, добавляем очко действия
 	if player:
 		player.add_action_point()
+	else:
+		_find_level_manager()
+		if level_manager:
+			level_manager.set_path_debug_visible(paths_visible)
+
+func _find_level_manager():
+	var tree := get_tree()
+	if not tree:
+		return
+	level_manager = tree.get_first_node_in_group("level_manager") as LevelManager
+	if not level_manager:
+		await tree.process_frame
+		level_manager = tree.get_first_node_in_group("level_manager") as LevelManager
+
+func _update_way_button_text():
+	if paths_visible:
+		way_button.text = "Пути: вкл"
+	else:
+		way_button.text = "Пути: выкл"
+
+func _on_way_button_pressed():
+	paths_visible = not paths_visible
+	_update_way_button_text()
+	if not level_manager:
+		_find_level_manager()
+	if level_manager:
+		level_manager.set_path_debug_visible(paths_visible)
 	else:
 		# Если игрок еще не найден, пробуем найти его
 		_find_player()

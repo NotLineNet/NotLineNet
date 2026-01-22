@@ -87,7 +87,6 @@ func _ready():
 	
 	# Устанавливаем начальный уровень зума
 	_set_zoom_level(zoom_level, false)  # false = без интерполяции при старте
-	print("Zoom preset: ", zoom_level)  # Логирование начального уровня
 	
 	# Если начальный уровень 0, центрируем камеру на тайле игрока
 	if zoom_level == 0:
@@ -143,7 +142,6 @@ func _unhandled_input(event):
 		
 		# Логируем только если уровень изменился
 		if zoom_level != old_level:
-			print("Zoom preset: ", zoom_level)
 			_set_zoom_level(zoom_level, true)  # true = с интерполяцией
 			
 			# Если перешли на пресет 0, центрируем камеру на тайле игрока

@@ -48,41 +48,42 @@ far = 100.0
 
 [node name="UI" type="CanvasLayer" parent="."]
 
-[node name="HUD" type="PanelContainer" parent="UI" groups=["UI"]]
+[node name="HUD(cheats)" type="PanelContainer" parent="UI" groups=["UI"]]
 custom_minimum_size = Vector2(0, 100)
-anchors_preset = 12
-anchor_top = 1.0
+anchors_preset = 10
 anchor_right = 1.0
-anchor_bottom = 1.0
+offset_bottom = 31.0
 grow_horizontal = 2
-grow_vertical = 0
 script = ExtResource("4_l3cfh")
 
-[node name="HBoxContainer" type="HBoxContainer" parent="UI/HUD"]
+[node name="HBoxContainer" type="HBoxContainer" parent="UI/HUD(cheats)"]
 layout_mode = 2
 
-[node name="ODButton" type="Button" parent="UI/HUD/HBoxContainer"]
-custom_minimum_size = Vector2(400, 0)
+[node name="ODButton" type="Button" parent="UI/HUD(cheats)/HBoxContainer"]
 layout_mode = 2
 text = "+ОД
 "
 icon_alignment = 1
 
-[node name="ReloadButton" type="Button" parent="UI/HUD/HBoxContainer"]
-custom_minimum_size = Vector2(400, 0)
+[node name="ReloadButton" type="Button" parent="UI/HUD(cheats)/HBoxContainer"]
 layout_mode = 2
 text = "Перезагрузка
 "
 icon_alignment = 1
 
-[node name="Spacer" type="Control" parent="UI/HUD/HBoxContainer"]
+[node name="WayButton" type="Button" parent="UI/HUD(cheats)/HBoxContainer"]
+layout_mode = 2
+text = "Пути
+вкл выкл"
+
+[node name="Spacer" type="Control" parent="UI/HUD(cheats)/HBoxContainer"]
 layout_mode = 2
 
-[node name="ActionPoints" type="HBoxContainer" parent="UI/HUD/HBoxContainer"]
+[node name="ActionPoints" type="HBoxContainer" parent="UI/HUD(cheats)/HBoxContainer"]
 layout_mode = 2
 alignment = 2
 
-[node name="Point" type="ColorRect" parent="UI/HUD/HBoxContainer/ActionPoints"]
+[node name="Point" type="ColorRect" parent="UI/HUD(cheats)/HBoxContainer/ActionPoints"]
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
 color = Color(0.3019608, 1, 1, 1)
@@ -94,4 +95,4 @@ position = Vector2(628.16, 352.655)
 scale = Vector2(1.11, 1.11)
 texture = ExtResource("6_hujxm")
 
-[connection signal="pressed" from="UI/HUD/HBoxContainer/ODButton" to="UI/HUD" method="_on_od_button_pressed"]
+[connection signal="pressed" from="UI/HUD(cheats)/HBoxContainer/ODButton" to="UI/HUD(cheats)" method="_on_od_button_pressed"]

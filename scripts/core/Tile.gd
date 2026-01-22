@@ -8,6 +8,7 @@ var grid_pos: Vector2i
 var exits: Array[Vector2i] = []
 var exit_markers: Dictionary = {}  # Хранит маркеры выходов по направлению
 var player: Player  # Ссылка на игрока
+var base_room: Node3D
 
 const EXIT_MARKER_SIZE := Vector3(0.3, 0.3, 0.3)
 const EXIT_OFFSET := 0.9
@@ -25,6 +26,7 @@ func set_color(color: Color):
 		mesh_instance.material_override = material
 
 func _ready():
+	base_room = get_node_or_null("BaseRoom")
 	# Подключаем обработчик клика на Area3D
 	var area := get_node_or_null("Area3D")
 	if area:
@@ -175,7 +177,9 @@ func _can_interact_with_exits() -> bool:
 	return player.current_tile == self and not player.is_moving
 
 func hide_tile():
-	visible = false
+	if base_room:
+		base_room.visible = false
 
 func show_tile():
-	visible = true
+	if base_room:
+		base_room.visible = true
