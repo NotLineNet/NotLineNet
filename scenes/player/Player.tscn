@@ -9,3 +9,10 @@ script = ExtResource("1_wr5hl")
 [node name="Sprite3D" type="Sprite3D" parent="."]
 transform = Transform3D(0.3, 0, 0, 0, 0.29544234, 0.052094456, 0, -0.052094456, 0.29544234, -0.27, 0, -0.5)
 texture = ExtResource("2_gfjak")
+
+[node name="SpotLight3D" type="SpotLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 3.46, 0)
+spot_range = 12.067
+spot_attenuation = 0.07
+spot_angle = 52.86
+spot_angle_attenuation = 2.1435475

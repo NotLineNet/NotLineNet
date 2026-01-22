@@ -185,25 +185,30 @@ func spend_action_point():
 func _move_camera_to_tile(target_tile: Tile):
 	"""Перемещает камеру на позицию тайла с изингом и небольшим отставанием"""
 	# Находим CameraRoot в дереве сцены
-	var camera_root: Node3D = null
+	var camera_root: CameraDrag = null
 	
 	# Пробуем найти через дерево сцены (группа)
 	var tree := get_tree()
 	if tree:
-		camera_root = tree.get_first_node_in_group("camera_root") as Node3D
+		camera_root = tree.get_first_node_in_group("camera_root") as CameraDrag
 	
 	# Если не нашли через группу, пробуем через путь
 	if not camera_root:
-		camera_root = get_node_or_null("../../CameraRoot") as Node3D
+		camera_root = get_node_or_null("../../CameraRoot") as CameraDrag
 	
 	# Если все еще не нашли, пробуем абсолютный путь
 	if not camera_root:
-		camera_root = get_node_or_null("/root/Main/CameraRoot") as Node3D
+		camera_root = get_node_or_null("/root/Main/CameraRoot") as CameraDrag
 	
 	if not camera_root:
 		return
 	
-	# Вычисляем целевую позицию камеры (только x и z, y остается прежним)
+	# Если камера на пресете 0, используем метод центрирования (камера привязана к тайлу)
+	if camera_root.zoom_level == 0:
+		camera_root.center_camera_on_tile(target_tile)
+		return
+	
+	# Обычное перемещение камеры с отставанием (для других пресетов)
 	var target_camera_position := Vector3(
 		target_tile.global_position.x,
 		camera_root.global_position.y,  # Сохраняем текущую высоту камеры

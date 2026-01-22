@@ -22,18 +22,29 @@ player_scene = ExtResource("3_6q06x")
 [node name="CameraRoot" type="Node3D" parent="."]
 script = ExtResource("1_hyk8p")
 drag_speed = 0.01
+zoom_presets = Array[Dictionary]([{
+"fov": 50.0,
+"position": Vector3(0, 2, 0),
+"rotation_x": -33.0
+}, {
+"fov": 60.0,
+"position": Vector3(0, 8, 4.5),
+"rotation_x": -45.0
+}, {
+"fov": 90.0,
+"position": Vector3(0, 13, 3),
+"rotation_x": -70.0
+}])
 
-[node name="Camera3D" type="Camera3D" parent="CameraRoot"]
-transform = Transform3D(1, 0, 0, 0, 0.83867055, 0.54463905, 0, -0.54463905, 0.83867055, 0, 3.2, 3.33)
+[node name="CameraPivot" type="Node3D" parent="CameraRoot"]
+transform = Transform3D(1, 0, 0, 0, 0.83867055, 0.54463905, 0, -0.54463905, 0.83867055, 0, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraRoot/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 3.4)
 current = true
 fov = 50.0
-size = 10.0
 near = 0.01
 far = 100.0
-
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="CameraRoot/Camera3D"]
-transform = Transform3D(1, 0, 0, 0, 0.49999997, 0.86602545, 0, -0.86602545, 0.49999997, 0, 0, 0)
-sky_mode = 1
 
 [node name="UI" type="CanvasLayer" parent="."]
 
