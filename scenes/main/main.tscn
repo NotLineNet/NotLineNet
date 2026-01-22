@@ -59,12 +59,6 @@ script = ExtResource("4_l3cfh")
 [node name="HBoxContainer" type="HBoxContainer" parent="UI/HUD(cheats)"]
 layout_mode = 2
 
-[node name="ODButton" type="Button" parent="UI/HUD(cheats)/HBoxContainer"]
-layout_mode = 2
-text = "+ОД
-"
-icon_alignment = 1
-
 [node name="ReloadButton" type="Button" parent="UI/HUD(cheats)/HBoxContainer"]
 layout_mode = 2
 text = "Перезагрузка
@@ -75,6 +69,14 @@ icon_alignment = 1
 layout_mode = 2
 text = "Пути
 вкл выкл"
+
+[node name="ODButton" type="Button" parent="UI/HUD(cheats)/HBoxContainer"]
+modulate = Color(0.1882353, 1, 1, 1)
+custom_minimum_size = Vector2(121.695, 0)
+layout_mode = 2
+text = "+ОД
+"
+icon_alignment = 1
 
 [node name="Spacer" type="Control" parent="UI/HUD(cheats)/HBoxContainer"]
 layout_mode = 2

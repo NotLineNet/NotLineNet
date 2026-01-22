@@ -2,6 +2,7 @@ extends PanelContainer
 
 @onready var action_points_container: HBoxContainer = $HBoxContainer/ActionPoints
 @onready var point_template: ColorRect = $HBoxContainer/ActionPoints/Point
+@onready var reload_button: Button = $HBoxContainer/ReloadButton
 @onready var way_button: Button = $HBoxContainer/WayButton
 
 var player: Player
@@ -13,6 +14,7 @@ func _ready():
 	_find_player()
 	_find_level_manager()
 	way_button.pressed.connect(_on_way_button_pressed)
+	reload_button.pressed.connect(_on_reload_button_pressed)
 	_update_way_button_text()
 
 func _find_player():
@@ -95,3 +97,8 @@ func _on_way_button_pressed():
 		_find_player()
 		if player:
 			player.add_action_point()
+
+func _on_reload_button_pressed() -> void:
+	var tree := get_tree()
+	if tree:
+		tree.reload_current_scene()
