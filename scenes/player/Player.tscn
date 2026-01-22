@@ -1,10 +1,11 @@
 [gd_scene load_steps=3 format=3 uid="uid://c73qdi2dyokjj"]
 
 [ext_resource type="Script" uid="uid://bhdb51wd8kgtd" path="res://scripts/core/Player.gd" id="1_wr5hl"]
-
-[sub_resource type="SphereMesh" id="SphereMesh_o8nba"]
-radius = 0.5
-height = 1.0
+[ext_resource type="Texture2D" uid="uid://drxcieq1odaax" path="res://image/1.png" id="2_gfjak"]
 
 [node name="Player" type="Node3D"]
 script = ExtResource("1_wr5hl")
+
+[node name="Sprite3D" type="Sprite3D" parent="."]
+transform = Transform3D(0.3, 0, 0, 0, 0.29544234, 0.052094456, 0, -0.052094456, 0.29544234, -0.27, 0, -0.5)
+texture = ExtResource("2_gfjak")

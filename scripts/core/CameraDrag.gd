@@ -11,6 +11,8 @@ var camera: Camera3D
 
 func _ready():
 	camera = get_node_or_null("Camera3D")
+	# Добавляем в группу для удобного поиска
+	add_to_group("camera_root")
 
 func _unhandled_input(event):
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:

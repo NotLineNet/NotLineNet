@@ -1,15 +1,19 @@
-[gd_scene load_steps=5 format=3 uid="uid://b8toho7arn72x"]
+[gd_scene load_steps=7 format=3 uid="uid://b8toho7arn72x"]
 
 [ext_resource type="Script" uid="uid://4pemhf4pqpb5" path="res://scripts/core/CameraDrag.gd" id="1_hyk8p"]
 [ext_resource type="Script" uid="uid://dd2pm03574y0b" path="res://scripts/core/LevelManager.gd" id="1_iuonh"]
 [ext_resource type="PackedScene" uid="uid://34iqiybudqgv" path="res://scenes/tile/Tile.tscn" id="2_k2fmo"]
+[ext_resource type="PackedScene" uid="uid://c73qdi2dyokjj" path="res://scenes/player/Player.tscn" id="3_6q06x"]
 [ext_resource type="Script" uid="uid://bd2sxyxkbsxw5" path="res://scripts/ui/UI.gd" id="4_l3cfh"]
+[ext_resource type="Texture2D" uid="uid://b764pfwb7s0ke" path="res://image/Снимок экрана 2026-01-22 193939.png" id="6_hujxm"]
 
 [node name="Main" type="Node3D"]
 
 [node name="LevelManager" type="Node3D" parent="."]
+transform = Transform3D(0.70710677, 0, -0.70710677, 0, 1, 0, 0.70710677, 0, 0.70710677, 0, 0, -1.155)
 script = ExtResource("1_iuonh")
 tile_scene = ExtResource("2_k2fmo")
+player_scene = ExtResource("3_6q06x")
 
 [node name="LevelRoot" type="Node3D" parent="."]
 
@@ -20,13 +24,16 @@ script = ExtResource("1_hyk8p")
 drag_speed = 0.01
 
 [node name="Camera3D" type="Camera3D" parent="CameraRoot"]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 20, 0)
-projection = 1
+transform = Transform3D(1, 0, 0, 0, 0.83867055, 0.54463905, 0, -0.54463905, 0.83867055, 0, 3.2, 3.33)
 current = true
+fov = 50.0
 size = 10.0
+near = 0.01
+far = 100.0
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="CameraRoot/Camera3D"]
 transform = Transform3D(1, 0, 0, 0, 0.49999997, 0.86602545, 0, -0.86602545, 0.49999997, 0, 0, 0)
+sky_mode = 1
 
 [node name="UI" type="CanvasLayer" parent="."]
 
@@ -68,5 +75,12 @@ alignment = 2
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
 color = Color(0.3019608, 1, 1, 1)
+
+[node name="Sprite2D" type="Sprite2D" parent="UI"]
+visible = false
+modulate = Color(1, 1, 1, 0.5411765)
+position = Vector2(628.16, 352.655)
+scale = Vector2(1.11, 1.11)
+texture = ExtResource("6_hujxm")
 
 [connection signal="pressed" from="UI/HUD/HBoxContainer/ODButton" to="UI/HUD" method="_on_od_button_pressed"]

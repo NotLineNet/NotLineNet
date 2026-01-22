@@ -2,6 +2,8 @@ extends Node3D
 class_name Player
 
 const MOVE_DURATION := 0.2  # Длительность анимации движения в секундах
+const CAMERA_MOVE_DURATION := 0.3  # Длительность анимации движения камеры (немного дольше)
+const CAMERA_DELAY := 0.05  # Небольшое отставание перед началом движения камеры
 
 signal action_points_changed(new_value: int)
 
@@ -18,31 +20,27 @@ var action_points: int = 3  # Количество очков действий
 const PLAYER_SIZE := 1.0
 
 func _ready():
-	# Создаем визуальное представление игрока (шар)
+	# Визуал берётся из сцены Player (Sprite3D). Если сцены нет — создаём сферу как запасной вариант
 	_create_player_visual()
 	
 	# LevelManager будет установлен через initialize_on_tile()
 
 func _create_player_visual():
-	# Удаляем существующие дочерние элементы, если есть
+	# Если в сцене уже есть Sprite3D — ничего не делаем, используем его
+	if get_node_or_null("Sprite3D"):
+		return
+	# Запасной вариант: создаём сферу (если Player создан через new() без сцены)
 	for child in get_children():
 		child.queue_free()
-	
-	# Создаем сферу для игрока
 	var mesh_instance := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
-	sphere.radius = PLAYER_SIZE / 2.0  # Радиус = половина размера
+	sphere.radius = PLAYER_SIZE / 2.0
 	sphere.height = PLAYER_SIZE
 	mesh_instance.mesh = sphere
-	
-	# Материал для игрока
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.2, 0.6, 1.0)  # Синий цвет
+	material.albedo_color = Color(0.2, 0.6, 1.0)
 	mesh_instance.material_override = material
-	
 	add_child(mesh_instance)
-	
-	# Позиционируем визуал в центре
 	mesh_instance.position = Vector3.ZERO
 
 func initialize_on_tile(tile: Tile):
@@ -56,6 +54,9 @@ func initialize_on_tile(tile: Tile):
 	
 	# Принудительно обновляем цвет ворот на текущем тайле
 	tile.on_player_entered()
+	
+	# Перемещаем камеру на стартовый тайл (без задержки при инициализации)
+	_move_camera_to_tile_immediate(tile)
 
 func _connect_to_tile(tile: Tile):
 	"""Подключается к сигналам тайла для обработки кликов на ворота"""
@@ -132,6 +133,9 @@ func move_to_tile(target_tile: Tile):
 	tween.set_trans(Tween.TRANS_CUBIC)
 	tween.tween_property(self, "global_position", target_position, MOVE_DURATION)
 	
+	# Перемещаем камеру с небольшим отставанием
+	_move_camera_to_tile(target_tile)
+	
 	# Ждем завершения анимации
 	await tween.finished
 	
@@ -177,3 +181,74 @@ func spend_action_point():
 	if action_points > MIN_ACTION_POINTS:
 		action_points -= 1
 		action_points_changed.emit(action_points)
+
+func _move_camera_to_tile(target_tile: Tile):
+	"""Перемещает камеру на позицию тайла с изингом и небольшим отставанием"""
+	# Находим CameraRoot в дереве сцены
+	var camera_root: Node3D = null
+	
+	# Пробуем найти через дерево сцены (группа)
+	var tree := get_tree()
+	if tree:
+		camera_root = tree.get_first_node_in_group("camera_root") as Node3D
+	
+	# Если не нашли через группу, пробуем через путь
+	if not camera_root:
+		camera_root = get_node_or_null("../../CameraRoot") as Node3D
+	
+	# Если все еще не нашли, пробуем абсолютный путь
+	if not camera_root:
+		camera_root = get_node_or_null("/root/Main/CameraRoot") as Node3D
+	
+	if not camera_root:
+		return
+	
+	# Вычисляем целевую позицию камеры (только x и z, y остается прежним)
+	var target_camera_position := Vector3(
+		target_tile.global_position.x,
+		camera_root.global_position.y,  # Сохраняем текущую высоту камеры
+		target_tile.global_position.z
+	)
+	
+	# Создаем твин для камеры с изингом и отставанием
+	var camera_tween := create_tween()
+	camera_tween.set_ease(Tween.EASE_IN_OUT)
+	camera_tween.set_trans(Tween.TRANS_CUBIC)
+	
+	# Добавляем небольшую задержку перед началом движения камеры
+	camera_tween.tween_interval(CAMERA_DELAY)
+	camera_tween.tween_property(camera_root, "global_position", target_camera_position, CAMERA_MOVE_DURATION)
+
+func _move_camera_to_tile_immediate(target_tile: Tile):
+	"""Перемещает камеру на позицию тайла без задержки (для инициализации)"""
+	# Находим CameraRoot в дереве сцены
+	var camera_root: Node3D = null
+	
+	# Пробуем найти через дерево сцены (группа)
+	var tree := get_tree()
+	if tree:
+		camera_root = tree.get_first_node_in_group("camera_root") as Node3D
+	
+	# Если не нашли через группу, пробуем через путь
+	if not camera_root:
+		camera_root = get_node_or_null("../../CameraRoot") as Node3D
+	
+	# Если все еще не нашли, пробуем абсолютный путь
+	if not camera_root:
+		camera_root = get_node_or_null("/root/Main/CameraRoot") as Node3D
+	
+	if not camera_root:
+		return
+	
+	# Вычисляем целевую позицию камеры (только x и z, y остается прежним)
+	var target_camera_position := Vector3(
+		target_tile.global_position.x,
+		camera_root.global_position.y,  # Сохраняем текущую высоту камеры
+		target_tile.global_position.z
+	)
+	
+	# Создаем твин для камеры с изингом (без задержки)
+	var camera_tween := create_tween()
+	camera_tween.set_ease(Tween.EASE_IN_OUT)
+	camera_tween.set_trans(Tween.TRANS_CUBIC)
+	camera_tween.tween_property(camera_root, "global_position", target_camera_position, CAMERA_MOVE_DURATION)

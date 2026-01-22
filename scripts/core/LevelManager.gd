@@ -4,7 +4,7 @@ class_name LevelManager
 @export var tile_scene: PackedScene
 @export var player_scene: PackedScene
 
-const TILE_SIZE := 2.0
+const TILE_SIZE := 4
 const GRID_SIZE := 21
 const DIRECTIONS: Array[Vector2i] = [
 	Vector2i.UP,
@@ -16,9 +16,6 @@ const DIRECTIONS: Array[Vector2i] = [
 var tiles: Dictionary = {}
 var green_tile_pos: Vector2i
 var red_tile_pos: Vector2i
-var path_lines: Array[Node3D] = []  # Для хранения линий путей
-var green_path_lines: Array[Node3D] = []  # Линии зеленого пути
-var red_path_lines: Array[Node3D] = []  # Линии красного пути
 var player: Player
 
 func _ready():
@@ -309,7 +306,6 @@ func create_tile(pos: Vector2i) -> Tile:
 	tile.position = Vector3(pos.x * TILE_SIZE, 0, pos.y * TILE_SIZE)
 
 	tile.exit_clicked.connect(_on_exit_clicked)
-	tile.tile_clicked.connect(_on_tile_clicked)
 
 	tiles[pos] = tile
 	return tile
@@ -360,59 +356,6 @@ func find_path(from_pos: Vector2i, to_pos: Vector2i) -> Array[Vector2i]:
 	
 	return []  # Путь не найден
 
-# ===== ВИЗУАЛИЗАЦИЯ ПУТИ =====
-
-func visualize_path(path: Array[Vector2i], color: Color, lines_array: Array):
-	if path.size() < 2:
-		return
-	
-	# Создаем линии между тайлами
-	for i in range(path.size() - 1):
-		var from_pos: Vector2i = path[i]
-		var to_pos: Vector2i = path[i + 1]
-		
-		var from_tile: Tile = tiles[from_pos] as Tile
-		var to_tile: Tile = tiles[to_pos] as Tile
-		
-		var from_pos_3d := from_tile.global_position + Vector3(0, 0.2, 0)
-		var to_pos_3d := to_tile.global_position + Vector3(0, 0.2, 0)
-		
-		# Создаем цилиндр для линии
-		var line := MeshInstance3D.new()
-		var cylinder := CylinderMesh.new()
-		cylinder.top_radius = 0.05
-		cylinder.bottom_radius = 0.05
-		
-		var direction := to_pos_3d - from_pos_3d
-		var distance := direction.length()
-		cylinder.height = distance
-		
-		line.mesh = cylinder
-		
-		# Материал для линии
-		var material := StandardMaterial3D.new()
-		material.albedo_color = color
-		material.emission_enabled = true
-		material.emission = color
-		line.material_override = material
-		
-		# Позиционируем и поворачиваем линию
-		line.position = from_pos_3d + direction / 2.0
-		line.look_at(to_pos_3d, Vector3.UP)
-		line.rotate_object_local(Vector3.RIGHT, PI / 2.0)
-		
-		add_child(line)
-		lines_array.append(line)
-		path_lines.append(line)
-
-func clear_path_lines():
-	for line in path_lines:
-		if is_instance_valid(line):
-			line.queue_free()
-	path_lines.clear()
-	green_path_lines.clear()
-	red_path_lines.clear()
-
 # ===== УПРАВЛЕНИЕ ВИДИМОСТЬЮ ТАЙЛОВ =====
 
 func hide_all_tiles_except(visible_positions: Array[Vector2i]):
@@ -445,31 +388,14 @@ func _on_exit_clicked(tile: Tile, dir: Vector2i):
 		# Показываем тайл и его выходы
 		next_tile.show_tile()
 
-func _on_tile_clicked(tile: Tile):
-	var target_pos := tile.grid_pos
-	
-	# Удаляем предыдущие линии
-	clear_path_lines()
-	
-	# Ищем путь от красного тайла до кликнутого тайла
-	var red_path := find_path(red_tile_pos, target_pos)
-	if red_path.size() > 0:
-		visualize_path(red_path, Color.RED, red_path_lines)
-	
-	# Ищем путь от зеленого тайла до кликнутого тайла
-	var green_path := find_path(green_tile_pos, target_pos)
-	if green_path.size() > 0:
-		visualize_path(green_path, Color.GREEN, green_path_lines)
-
 # ===== СОЗДАНИЕ ИГРОКА =====
 
 func create_player():
 	"""Создает игрока и размещает его на зеленом тайле"""
-	# Если сцена игрока не задана, создаем его программно
+	# Если сцена игрока не задана, используем сцену Player по умолчанию (Sprite3D)
 	if not player_scene:
-		player = Player.new()
-	else:
-		player = player_scene.instantiate() as Player
+		player_scene = preload("res://scenes/player/Player.tscn") as PackedScene
+	player = player_scene.instantiate() as Player
 	
 	if not player:
 		push_error("Не удалось создать игрока")
