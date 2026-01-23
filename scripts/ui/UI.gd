@@ -4,6 +4,9 @@ extends PanelContainer
 @onready var way_button: Button = $HBoxContainer/WayButton
 @onready var player_ui_action_points: HBoxContainer = $"../PlayerUI/PanelRoot/ActionPoints"
 @onready var button_finish: Button = $"../PlayerUI/PanelRoot/ButtonFinish"
+@onready var player_ui := $"../PlayerUI"
+@onready var game_manager := get_node_or_null("../../GameManager")
+@onready var day_label: Label = $HBoxContainer/DayLabel
 
 var player: Player
 var paths_visible: bool = false
@@ -18,6 +21,7 @@ func _ready():
 	_update_way_button_text()
 	if button_finish:
 		button_finish.visible = false
+		button_finish.pressed.connect(_on_button_finish_pressed)
 
 func _find_player():
 	"""Находит игрока в дереве сцены"""
@@ -105,3 +109,13 @@ func _on_reload_button_pressed() -> void:
 	var tree := get_tree()
 	if tree:
 		tree.reload_current_scene()
+
+func _on_button_finish_pressed() -> void:
+	if player_ui:
+		player_ui.hide_player_ui()
+	if game_manager:
+		game_manager.all_players_finished_moving()
+
+func set_day_label(day: int) -> void:
+	if day_label:
+		day_label.text = "День %d" % day

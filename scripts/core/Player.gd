@@ -176,6 +176,12 @@ func add_action_point():
 		action_points += 1
 		action_points_changed.emit(action_points)
 
+func refill_action_points():
+	"""Восстанавливает очки действий до максимума"""
+	if action_points != MAX_ACTION_POINTS:
+		action_points = MAX_ACTION_POINTS
+		action_points_changed.emit(action_points)
+
 func spend_action_point():
 	"""Тратит одно очко действия (минимум MIN_ACTION_POINTS)"""
 	if action_points > MIN_ACTION_POINTS:

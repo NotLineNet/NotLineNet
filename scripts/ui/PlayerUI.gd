@@ -6,13 +6,13 @@ func _ready():
 	visible = false
 	anim.animation_finished.connect(_on_anim_finished)
 	
-func show_PlayerUi():
+func show_player_ui():
 	visible = true
-	anim.play("UI_Show")
+	anim.play("PlayerUI_Show")
 
-func hide_playerUi():
-	anim.play("UI_Hide")
+func hide_player_ui():
+	anim.play("PlayerUI_Hide")
 	
 func _on_anim_finished(name: String):
-	if name == "UI_Hide":
+	if name == "PlayerUI_Hide":
 		visible = false

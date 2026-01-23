@@ -88,6 +88,11 @@ icon_alignment = 1
 [node name="Spacer" type="Control" parent="UI/HUD(cheats)/HBoxContainer"]
 layout_mode = 2
 
+[node name="DayLabel" type="Label" parent="UI/HUD(cheats)/HBoxContainer"]
+layout_mode = 2
+text = "День 1
+"
+
 [node name="PlayerUI" parent="UI" instance=ExtResource("6_ow5a4")]
 
 [connection signal="pressed" from="UI/HUD(cheats)/HBoxContainer/ODButton" to="UI/HUD(cheats)" method="_on_od_button_pressed"]
