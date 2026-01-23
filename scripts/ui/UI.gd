@@ -5,16 +5,13 @@ extends PanelContainer
 @onready var player_ui_action_points: HBoxContainer = $"../PlayerUI/PanelRoot/ActionPoints"
 @onready var button_finish: Button = $"../PlayerUI/PanelRoot/ButtonFinish"
 @onready var player_ui := $"../PlayerUI"
-@onready var game_manager := get_node_or_null("../../GameManager")
+@onready var game_manager: GameManager = get_node_or_null("../../GameManager") as GameManager
 @onready var day_label: Label = $HBoxContainer/DayLabel
 
-var player: Player
 var paths_visible: bool = false
 var level_manager: LevelManager
 
 func _ready():
-	# Находим игрока через группу
-	_find_player()
 	_find_level_manager()
 	way_button.pressed.connect(_on_way_button_pressed)
 	reload_button.pressed.connect(_on_reload_button_pressed)
@@ -22,28 +19,7 @@ func _ready():
 	if button_finish:
 		button_finish.visible = false
 		button_finish.pressed.connect(_on_button_finish_pressed)
-
-func _find_player():
-	"""Находит игрока в дереве сцены"""
-	var tree := get_tree()
-	if not tree:
-		return
-	
-	# Пробуем найти игрока
-	player = tree.get_first_node_in_group("player") as Player
-	
-	# Если игрок еще не создан, ждем и пробуем снова
-	if not player:
-		await get_tree().process_frame
-		player = tree.get_first_node_in_group("player") as Player
-	
-	# Если игрок найден, подключаемся к сигналу
-	if player:
-		if not player.action_points_changed.is_connected(_on_action_points_changed):
-			player.action_points_changed.connect(_on_action_points_changed)
-		# Инициализируем UI с начальным количеством очков
-		_update_player_ui_action_points(player.action_points)
-		_update_finish_button(player.action_points)
+	_setup_game_manager_connections()
 
 func _on_action_points_changed(new_value: int):
 	"""Обновляет визуальное отображение очков действий"""
@@ -68,10 +44,28 @@ func _update_finish_button(count: int):
 		return
 	button_finish.visible = count == 0
 
+func _setup_game_manager_connections() -> void:
+	if not game_manager:
+		return
+	if not game_manager.is_connected("active_player_action_points_changed", Callable(self, "_on_action_points_changed")):
+		game_manager.connect("active_player_action_points_changed", Callable(self, "_on_action_points_changed"))
+	if not game_manager.is_connected("active_player_changed", Callable(self, "_on_active_player_changed")):
+		game_manager.connect("active_player_changed", Callable(self, "_on_active_player_changed"))
+	_apply_active_player_state(game_manager.active_player)
+
+func _on_active_player_changed(player: Player) -> void:
+	_apply_active_player_state(player)
+
+func _apply_active_player_state(player: Player) -> void:
+	if not player:
+		return
+	_update_player_ui_action_points(player.action_points)
+	_update_finish_button(player.action_points)
+
 func _on_od_button_pressed() -> void:
-	# Если игрок найден, добавляем очко действия
-	if player:
-		player.add_action_point()
+	# Если активный игрок найден, добавляем очко действия
+	if game_manager and game_manager.active_player:
+		game_manager.active_player.add_action_point()
 	else:
 		_find_level_manager()
 		if level_manager:
@@ -99,11 +93,6 @@ func _on_way_button_pressed():
 		_find_level_manager()
 	if level_manager:
 		level_manager.set_path_debug_visible(paths_visible)
-	else:
-		# Если игрок еще не найден, пробуем найти его
-		_find_player()
-		if player:
-			player.add_action_point()
 
 func _on_reload_button_pressed() -> void:
 	var tree := get_tree()

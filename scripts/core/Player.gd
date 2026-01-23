@@ -13,6 +13,7 @@ const MIN_ACTION_POINTS := 0
 var current_tile: Tile
 var previous_tile: Tile  # Для возврата на предыдущий тайл
 var is_moving := false
+var is_active := false
 var level_manager: LevelManager
 var action_points: int = 3  # Количество очков действий
 
@@ -43,6 +44,16 @@ func _create_player_visual():
 	add_child(mesh_instance)
 	mesh_instance.position = Vector3.ZERO
 
+func set_active(active: bool) -> void:
+	if is_active == active:
+		return
+	if not active and current_tile:
+		current_tile.on_player_exited()
+	is_active = active
+	if is_active and current_tile:
+		current_tile.on_player_entered()
+		_move_camera_to_tile_immediate(current_tile)
+
 func initialize_on_tile(tile: Tile):
 	"""Размещает игрока на указанном тайле (стартовый зеленый тайл)"""
 	current_tile = tile
@@ -52,11 +63,10 @@ func initialize_on_tile(tile: Tile):
 	# Подключаемся к сигналам тайла
 	_connect_to_tile(tile)
 	
-	# Принудительно обновляем цвет ворот на текущем тайле
-	tile.on_player_entered()
-	
-	# Перемещаем камеру на стартовый тайл (без задержки при инициализации)
-	_move_camera_to_tile_immediate(tile)
+	# Если игрок активный, обновляем визуальные маркеры
+	if is_active:
+		tile.on_player_entered()
+		_move_camera_to_tile_immediate(tile)
 
 func _connect_to_tile(tile: Tile):
 	"""Подключается к сигналам тайла для обработки кликов на ворота"""
@@ -80,6 +90,8 @@ func _on_exit_clicked(tile: Tile, dir: Vector2i):
 	"""Обработчик клика на ворота тайла"""
 	# Проверяем, что клик был на текущем тайле и игрок не движется
 	if tile != current_tile or is_moving:
+		return
+	if not is_active:
 		return
 	
 	# Проверяем наличие очков действий
@@ -108,6 +120,8 @@ func _on_exit_clicked(tile: Tile, dir: Vector2i):
 func move_to_tile(target_tile: Tile):
 	"""Двигает игрока на указанный тайл с анимацией"""
 	if is_moving or not target_tile:
+		return
+	if not is_active:
 		return
 	
 	# Проверяем наличие очков действий
@@ -163,6 +177,8 @@ func can_move_back() -> bool:
 
 func move_back():
 	"""Возвращает игрока на предыдущий тайл"""
+	if not is_active:
+		return
 	if not can_move_back():
 		return
 	
@@ -190,6 +206,8 @@ func spend_action_point():
 
 func _move_camera_to_tile(target_tile: Tile):
 	"""Перемещает камеру на позицию тайла с изингом и небольшим отставанием"""
+	if not is_active:
+		return
 	# Находим CameraRoot в дереве сцены
 	var camera_root: CameraDrag = null
 	
@@ -232,6 +250,8 @@ func _move_camera_to_tile(target_tile: Tile):
 
 func _move_camera_to_tile_immediate(target_tile: Tile):
 	"""Перемещает камеру на позицию тайла без задержки (для инициализации)"""
+	if not is_active:
+		return
 	# Находим CameraRoot в дереве сцены
 	var camera_root: Node3D = null
 	

@@ -7,7 +7,6 @@ signal tile_clicked(tile: Tile)
 var grid_pos: Vector2i
 var exits: Array[Vector2i] = []
 var exit_markers: Dictionary = {}  # Хранит маркеры выходов по направлению
-var player: Player  # Ссылка на игрока
 var base_room: Node3D
 
 const EXIT_MARKER_SIZE := Vector3(0.3, 0.3, 0.3)
@@ -32,23 +31,11 @@ func _ready():
 	if area:
 		area.input_event.connect(_on_area_input_event)
 	
-	# Находим игрока в дереве сцены
-	_find_player()
-	
-	# Если игрок уже на этом тайле (например, при старте), обновляем цвет
-	if player:
-		var player_pos = Vector2i(round(player.global_position.x / 2.0), round(player.global_position.z / 2.0))
+	var active_player := _get_active_player()
+	if active_player:
+		var player_pos = Vector2i(round(active_player.global_position.x / 2.0), round(active_player.global_position.z / 2.0))
 		if player_pos == grid_pos:
 			on_player_entered()
-
-func _find_player():
-	"""Находит игрока в дереве сцены"""
-	var tree := get_tree()
-	if tree:
-		player = tree.get_first_node_in_group("player") as Player
-		if not player:
-			# Пробуем найти через путь
-			player = get_node_or_null("../../PlayerRoot/Player") as Player
 
 func _on_area_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int):
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -105,11 +92,12 @@ func redraw_exit_markers():
 
 func _get_current_gate_color() -> Color:
 	# Если игрок не определен, ворота серые
-	if not player:
+	var active_player := _get_active_player()
+	if not active_player:
 		return GATE_COLOR_INACTIVE
 		
 	# Проверяем позицию, так как ссылка на current_tile может быть еще не обновлена
-	var player_pos = Vector2i(round(player.global_position.x / 2.0), round(player.global_position.z / 2.0))
+	var player_pos = Vector2i(round(active_player.global_position.x / 2.0), round(active_player.global_position.z / 2.0))
 	if player_pos == grid_pos:
 		return GATE_COLOR_ACTIVE
 		
@@ -168,13 +156,24 @@ func _on_exit_marker_input_event(_cam: Node, event: InputEvent, _pos: Vector3, _
 
 func _can_interact_with_exits() -> bool:
 	"""Проверяет, можно ли взаимодействовать с выходами (игрок на тайле и не движется)"""
-	if not player:
-		_find_player()
-		if not player:
-			return false
-	
+	var active_player := _get_active_player()
+	if not active_player:
+		return false
+
 	# Проверяем, что игрок на этом тайле и не движется
-	return player.current_tile == self and not player.is_moving
+	return active_player.current_tile == self and not active_player.is_moving
+
+func _get_game_manager() -> GameManager:
+	var tree := get_tree()
+	if not tree:
+		return null
+	return tree.get_first_node_in_group("game_manager") as GameManager
+
+func _get_active_player() -> Player:
+	var gm := _get_game_manager()
+	if gm:
+		return gm.active_player
+	return null
 
 func hide_tile():
 	if base_room:

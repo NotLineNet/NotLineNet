@@ -25,8 +25,6 @@ const DIRECTIONS: Array[Vector2i] = [
 var tiles: Dictionary = {}
 var green_tile_positions: Array[Vector2i] = []
 var red_tile_pos: Vector2i
-var player: Player
-
 var path_debug_root: Node3D
 var path_debug_lines_built: bool = false
 var path_line_material: StandardMaterial3D
@@ -82,8 +80,8 @@ func create_grid():
 	visible_positions.append(red_tile_pos)
 	hide_all_tiles_except(visible_positions)
 
-	# Создаем и размещаем игрока на зеленом тайле
-	create_player()
+	# Создаем и размещаем игроков на зеленых тайлах
+	create_players()
 
 func _init_path_debug_root():
 	if path_debug_root:
@@ -678,7 +676,12 @@ func hide_all_tiles_except(visible_positions: Array[Vector2i]):
 func _on_exit_clicked(tile: Tile, dir: Vector2i):
 	# Проверяем наличие очков действий у игрока
 	# Если нет очков (action_points <= 0), не показываем следующий тайл
-	if player and player.action_points <= 0:
+	var gm: GameManager = _get_game_manager()
+	if not gm:
+		return
+
+	var active_player: Player = gm.active_player
+	if not active_player or active_player.action_points <= 0:
 		return
 	
 	# Раскрываем следующий тайл в направлении клика
@@ -693,53 +696,62 @@ func _on_exit_clicked(tile: Tile, dir: Vector2i):
 
 # ===== СОЗДАНИЕ ИГРОКА =====
 
-func create_player():
-	"""Создает игрока и размещает его на зеленом тайле"""
-	# Если сцена игрока не задана, используем сцену Player по умолчанию (Sprite3D)
+func create_players():
+	var gm: GameManager = _get_game_manager()
+	var desired_count: int = 3
+	if gm:
+		desired_count = max(1, gm.total_players)
+
+	if green_tile_positions.size() == 0:
+		push_error("Не удалось найти зеленые тайлы для игроков")
+		return
+
+	var spawn_positions: Array[Vector2i] = green_tile_positions.duplicate()
+	spawn_positions.shuffle()
+	var spawn_count: int = min(desired_count, spawn_positions.size())
+	if spawn_count == 0:
+		push_error("Недостаточно зеленых тайлов для размещения игроков")
+		return
+
+	var player_root: Node3D = _ensure_player_root()
+	for i in range(spawn_count):
+		var player_instance: Player = _instantiate_player(player_root)
+		if not player_instance:
+			continue
+
+		player_instance.level_manager = self
+		if gm:
+			gm.register_player(player_instance)
+
+		var start_pos: Vector2i = spawn_positions.pop_back() as Vector2i
+		var green_tile: Tile = tiles.get(start_pos, null) as Tile
+		if not green_tile:
+			push_error("Не удалось получить зеленый тайл для игрока")
+			continue
+
+		player_instance.initialize_on_tile(green_tile)
+		green_tile.redraw_exit_markers()
+
+func _instantiate_player(parent: Node3D) -> Player:
 	if not player_scene:
 		player_scene = preload("res://scenes/player/Player.tscn") as PackedScene
-	player = player_scene.instantiate() as Player
-	
-	if not player:
+	var new_player := player_scene.instantiate() as Player
+	if not new_player:
 		push_error("Не удалось создать игрока")
-		return
-	
-	# Добавляем игрока в группу для поиска
-	player.add_to_group("player")
-	
-	# Находим PlayerRoot или создаем его
+		return null
+	parent.add_child(new_player)
+	return new_player
+
+func _ensure_player_root() -> Node3D:
 	var player_root := get_node_or_null("../PlayerRoot")
 	if not player_root:
 		player_root = Node3D.new()
 		player_root.name = "PlayerRoot"
 		get_parent().add_child(player_root)
-	
-	player_root.add_child(player)
-	
-	# Устанавливаем ссылку на LevelManager
-	player.level_manager = self
-	
-	if green_tile_positions.size() == 0:
-		push_error("Не удалось найти зеленый тайл для игрока")
-		return
+	return player_root
 
-	# Размещаем игрока на случайном зеленом тайле
-	var start_pos := green_tile_positions[randi() % green_tile_positions.size()]
-	var green_tile: Tile = tiles.get(start_pos, null) as Tile
-	if not green_tile:
-		push_error("Не удалось получить ссылку на выбранный зеленый тайл")
-		return
-	
-	# Обновляем ссылки на игрока во всех тайлах
-	_update_tile_player_references()
-
-	# Затем инициализируем игрока на тайле (это вызовет on_player_entered)
-	player.initialize_on_tile(green_tile)
-
-	# Для надежности принудительно обновляем маркеры стартового тайла
-	green_tile.redraw_exit_markers()
-
-func _update_tile_player_references():
-	"""Обновляет ссылки на игрока во всех тайлах"""
-	for tile in tiles.values():
-		(tile as Tile).player = player
+func _get_game_manager() -> GameManager:
+	var tree := get_tree()
+	if not tree:
+		return null
+	return tree.get_first_node_in_group("game_manager") as GameManager
