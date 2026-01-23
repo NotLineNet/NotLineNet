@@ -1,0 +1,185 @@
+[gd_scene load_steps=8 format=3 uid="uid://cmwyo7p4h6jyf"]
+
+[ext_resource type="Texture2D" uid="uid://dvkaj2qyjh086" path="res://image/hero_icon_1.png" id="1_lv2tr"]
+[ext_resource type="Script" uid="uid://6al0a5xxxx87" path="res://scripts/ui/PlayerUI.gd" id="1_v5h85"]
+
+[sub_resource type="Animation" id="Animation_lv2tr"]
+resource_name = "PlayerUI_Show"
+length = 0.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.23333333, 0.4),
+"transitions": PackedFloat32Array(0.25000024, 1, 0.15389314),
+"update": 0,
+"values": [Vector2(0, 300), Vector2(0, -20.738), Vector2(0, 0)]
+}
+
+[sub_resource type="Animation" id="Animation_v5h85"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector2(0, 0)]
+}
+
+[sub_resource type="Animation" id="Animation_32b3b"]
+resource_name = "PlayerUI_Hide"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.16666667, 0.40198192),
+"transitions": PackedFloat32Array(0.2871746, 0.14358741, 1),
+"update": 0,
+"values": [Vector2(0, 0), Vector2(0, -20.738), Vector2(0, 300)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_32b3b"]
+_data = {
+&"PlayerUI_Hide": SubResource("Animation_32b3b"),
+&"PlayerUI_Show": SubResource("Animation_lv2tr"),
+&"RESET": SubResource("Animation_v5h85")
+}
+
+[sub_resource type="LabelSettings" id="LabelSettings_v5h85"]
+font_size = 50
+
+[node name="PlayerUI" type="Control"]
+custom_minimum_size = Vector2(1000, 120.705)
+layout_mode = 3
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -500.0
+offset_top = -50.0
+offset_right = 500.0
+grow_horizontal = 2
+grow_vertical = 0
+script = ExtResource("1_v5h85")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+root_node = NodePath("../PanelRoot")
+libraries = {
+&"": SubResource("AnimationLibrary_32b3b")
+}
+
+[node name="PanelRoot" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_bottom = 0.009353638
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="BG" type="ColorRect" parent="PanelRoot"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.3019608)
+
+[node name="Avatar" type="Sprite2D" parent="PanelRoot"]
+texture = ExtResource("1_lv2tr")
+offset = Vector2(-59.15, 45.335)
+
+[node name="Name" type="Label" parent="PanelRoot"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -64.0
+offset_top = -11.5
+offset_right = 64.0
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "Имя персонажа"
+label_settings = SubResource("LabelSettings_v5h85")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ButtonFinish" type="Button" parent="PanelRoot"]
+modulate = Color(0.7670247, 2.5268644e-06, 9.62615e-07, 1)
+custom_minimum_size = Vector2(100, 100)
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -8.0
+offset_top = -4.0
+offset_bottom = 4.0
+grow_horizontal = 0
+grow_vertical = 2
+text = "Завершить
+ход"
+
+[node name="ActionPoints" type="HBoxContainer" parent="PanelRoot"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+alignment = 2
+
+[node name="AP" type="Control" parent="PanelRoot/ActionPoints"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ColorRect" type="ColorRect" parent="PanelRoot/ActionPoints/AP"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.13652208, 0.99815196, 0.9999998, 1)
+
+[node name="AP2" type="Control" parent="PanelRoot/ActionPoints"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ColorRect" type="ColorRect" parent="PanelRoot/ActionPoints/AP2"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.13725491, 1, 1, 1)
+
+[node name="AP3" type="Control" parent="PanelRoot/ActionPoints"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ColorRect" type="ColorRect" parent="PanelRoot/ActionPoints/AP3"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.13725491, 1, 1, 1)

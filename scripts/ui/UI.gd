@@ -1,9 +1,9 @@
 extends PanelContainer
 
-@onready var action_points_container: HBoxContainer = $HBoxContainer/ActionPoints
-@onready var point_template: ColorRect = $HBoxContainer/ActionPoints/Point
 @onready var reload_button: Button = $HBoxContainer/ReloadButton
 @onready var way_button: Button = $HBoxContainer/WayButton
+@onready var player_ui_action_points: HBoxContainer = $"../PlayerUI/PanelRoot/ActionPoints"
+@onready var button_finish: Button = $"../PlayerUI/PanelRoot/ButtonFinish"
 
 var player: Player
 var paths_visible: bool = false
@@ -16,6 +16,8 @@ func _ready():
 	way_button.pressed.connect(_on_way_button_pressed)
 	reload_button.pressed.connect(_on_reload_button_pressed)
 	_update_way_button_text()
+	if button_finish:
+		button_finish.visible = false
 
 func _find_player():
 	"""Находит игрока в дереве сцены"""
@@ -36,30 +38,31 @@ func _find_player():
 		if not player.action_points_changed.is_connected(_on_action_points_changed):
 			player.action_points_changed.connect(_on_action_points_changed)
 		# Инициализируем UI с начальным количеством очков
-		_update_action_points_display(player.action_points)
+		_update_player_ui_action_points(player.action_points)
+		_update_finish_button(player.action_points)
 
 func _on_action_points_changed(new_value: int):
 	"""Обновляет визуальное отображение очков действий"""
-	_update_action_points_display(new_value)
+	_update_player_ui_action_points(new_value)
+	_update_finish_button(new_value)
 
-func _update_action_points_display(count: int):
-	"""Обновляет количество Point'ов в UI"""
-	# Скрываем шаблон, он используется только как образец
-	point_template.visible = false
-	
-	# Удаляем все существующие Point'ы (кроме шаблона)
-	var children = action_points_container.get_children()
-	for child in children:
-		if child != point_template:
-			child.queue_free()
-	
-	# Создаем нужное количество Point'ов
-	for i in count:
-		var new_point := ColorRect.new()
-		new_point.custom_minimum_size = point_template.custom_minimum_size
-		new_point.color = point_template.color
-		new_point.layout_mode = point_template.layout_mode
-		action_points_container.add_child(new_point)
+func _update_player_ui_action_points(count: int):
+	"""Скрывает/показывает ColorRect внутри AP нод в PlayerUI"""
+	if not player_ui_action_points:
+		return
+	var ap_nodes := player_ui_action_points.get_children()
+	for i in ap_nodes.size():
+		var ap_node := ap_nodes[i] as Node
+		if not ap_node:
+			continue
+		var color_rect := ap_node.get_node_or_null("ColorRect") as ColorRect
+		if color_rect:
+			color_rect.visible = i < count
+
+func _update_finish_button(count: int):
+	if not button_finish:
+		return
+	button_finish.visible = count == 0
 
 func _on_od_button_pressed() -> void:
 	# Если игрок найден, добавляем очко действия
