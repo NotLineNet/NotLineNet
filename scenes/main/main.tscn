@@ -18,7 +18,7 @@ transform = Transform3D(0.70710677, 0, -0.70710677, 0, 1, 0, 0.70710677, 0, 0.70
 script = ExtResource("1_iuonh")
 tile_scene = ExtResource("2_k2fmo")
 player_scene = ExtResource("3_6q06x")
-circle_radius = 7
+circle_radius = 5
 
 [node name="PlayerManager" type="Node3D" parent="."]
 metadata/PlayersViewParams = [{

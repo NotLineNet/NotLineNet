@@ -234,16 +234,10 @@ func _process(delta: float):
 
 # ===== ЦЕНТРИРОВАНИЕ КАМЕРЫ НА ТАЙЛЕ ИГРОКА =====
 func _center_camera_on_player_tile():
-	"""Устанавливает цель для плавного центрирования камеры на тайле игрока (при переходе на пресет 0)"""
-	# Находим игрока через группу
-	var tree := get_tree()
-	if not tree:
-		return
-	
-	var player = tree.get_first_node_in_group("player") as Player
+	"""Устанавливает цель для плавного центрирования камеры на тайле активного игрока (при переходе на пресет 0)"""
+	var player := _get_active_player()
 	if not player or not player.current_tile:
 		return
-	
 	var target_tile: Tile = player.current_tile
 	
 	# Вычисляем целевую позицию камеры (только x и z, y остается прежним)
@@ -275,3 +269,12 @@ func center_camera_on_tile(target_tile: Tile):
 	
 	# Включаем режим центрирования (интерполяция будет происходить в _process)
 	is_centering_on_tile = true
+
+func _get_active_player() -> Player:
+	var tree := get_tree()
+	if not tree:
+		return null
+	var gm := tree.get_first_node_in_group("game_manager") as GameManager
+	if not gm:
+		return null
+	return gm.active_player

@@ -100,10 +100,8 @@ func _on_reload_button_pressed() -> void:
 		tree.reload_current_scene()
 
 func _on_button_finish_pressed() -> void:
-	if player_ui:
-		player_ui.hide_player_ui()
 	if game_manager:
-		game_manager.all_players_finished_moving()
+		game_manager.current_player_finished_moving()
 
 func set_day_label(day: int) -> void:
 	if day_label:
