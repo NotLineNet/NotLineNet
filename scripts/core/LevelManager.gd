@@ -4,9 +4,15 @@ class_name LevelManager
 @export var tile_scene: PackedScene
 @export var player_scene: PackedScene
 @export var circle_radius: int = 9
+@export var green_circle_radius: int = 5
 @export var path_line_color: Color = Color(1, 0.75, 0.25, 0.9)
 @export var path_line_thickness: float = 0.25
 @export var path_line_height: float = 0.12
+# вероятность совторения тайла со входами:
+@export var exit_chance_one: float = 0.05
+@export var exit_chance_two: float = 0.20
+@export var exit_chance_three: float = 0.60
+@export var exit_chance_four: float = 0.15
 
 const TILE_SIZE := 4
 const DIRECTIONS: Array[Vector2i] = [
@@ -17,7 +23,7 @@ const DIRECTIONS: Array[Vector2i] = [
 ]
 
 var tiles: Dictionary = {}
-var green_tile_pos: Vector2i
+var green_tile_positions: Array[Vector2i] = []
 var red_tile_pos: Vector2i
 var player: Player
 
@@ -45,18 +51,24 @@ func create_grid():
 	red_tile.set_color(Color.RED)
 	set_tile_exits(red_tile, red_tile_pos, 4, true)
 
-	green_tile_pos = _pick_random_boundary_position(red_circle, red_tile_pos, radius)
-	create_circle_tiles(green_tile_pos, radius)
+	green_tile_positions = _pick_green_tile_positions(red_circle, red_tile_pos, 3)
+	if green_tile_positions.size() == 0:
+		var fallback_pos := red_tile_pos + Vector2i(radius, 0)
+		create_tile(fallback_pos)
+		green_tile_positions = [fallback_pos]
 
-	var green_tile: Tile = tiles[green_tile_pos] as Tile
-	green_tile.set_color(Color.GREEN)
-	set_tile_exits(green_tile, green_tile_pos, 4, true)
+	for green_pos in green_tile_positions:
+		create_circle_tiles(green_pos, green_circle_radius)
+		var green_tile: Tile = tiles[green_pos] as Tile
+		green_tile.set_color(Color.GREEN)
+		_configure_green_tile_exit(green_tile, green_pos)
 
-	# Создаем связный граф, начиная от зеленого и красного тайлов
-	create_connected_graph(green_tile_pos, red_tile_pos)
+	# Создаем связный граф, начиная от зеленых и красного тайлов
+	create_connected_graph(green_tile_positions, red_tile_pos)
 
-	# Гарантируем путь от зеленого до красного
-	ensure_path_between(green_tile_pos, red_tile_pos)
+	# Гарантируем путь от каждого зеленого до красного
+	for green_pos in green_tile_positions:
+		ensure_path_between(green_pos, red_tile_pos)
 
 	# Добавляем случайные дополнительные выходы, сохраняя связность
 	add_random_exits()
@@ -65,8 +77,10 @@ func create_grid():
 	for tile in tiles.values():
 		(tile as Tile).redraw_exit_markers()
 
-	# Скрываем все тайлы, кроме красного и зеленого
-	hide_all_tiles_except([green_tile_pos, red_tile_pos])
+	# Скрываем все тайлы, кроме красного и зеленых
+	var visible_positions: Array[Vector2i] = green_tile_positions.duplicate()
+	visible_positions.append(red_tile_pos)
+	hide_all_tiles_except(visible_positions)
 
 	# Создаем и размещаем игрока на зеленом тайле
 	create_player()
@@ -174,25 +188,111 @@ func create_circle_tiles(center: Vector2i, radius: int) -> Dictionary:
 		"boundary": boundary
 	}
 
-func _pick_random_boundary_position(circle_info: Dictionary, center: Vector2i, radius: int) -> Vector2i:
-	var candidates := []
+func _pick_green_tile_positions(circle_info: Dictionary, center: Vector2i, count: int) -> Array[Vector2i]:
+	var boundary: Array[Vector2i] = []
+	var raw_boundary := circle_info["boundary"] as Array
+	if raw_boundary:
+		for entry in raw_boundary:
+			if entry is Vector2i:
+				boundary.append(entry)
 
-	for pos in circle_info["boundary"]:
-		if pos != center:
-			candidates.append(pos)
+	if boundary.size() == 0:
+		var raw_positions := circle_info["positions"] as Array
+		if raw_positions:
+			for entry in raw_positions:
+				if entry is Vector2i:
+					boundary.append(entry)
 
-	if candidates.size() == 0:
-		for pos in circle_info["positions"]:
-			if pos != center:
-				candidates.append(pos)
+	if boundary.size() == 0:
+		return []
 
-	if candidates.size() == 0:
-		var fallback := center + Vector2i(radius, 0)
-		create_tile(fallback)
-		return fallback
+	if boundary.size() == 0:
+		return []
 
-	candidates.shuffle()
-	return candidates[0]
+	var selected: Array[Vector2i] = []
+	var used := {}
+
+	for i in range(count):
+		var target_angle := TAU * (i / float(count))
+		var best_pos: Vector2i = Vector2i.ZERO
+		var best_found := false
+		var best_diff := INF
+
+		for entry in boundary:
+			if not entry is Vector2i:
+				continue
+			var vector_pos: Vector2i = entry
+			if used.has(vector_pos):
+				continue
+			if vector_pos == center:
+				continue
+			var offset: Vector2 = Vector2(vector_pos.x - center.x, vector_pos.y - center.y)
+			var angle := atan2(offset.y, offset.x)
+			if angle < 0:
+				angle += TAU
+			var diff := _angle_difference(angle, target_angle)
+			if diff < best_diff:
+				best_diff = diff
+				best_pos = vector_pos
+				best_found = true
+		
+		if not best_found:
+			for entry in boundary:
+				if not entry is Vector2i:
+					continue
+				var vector_pos: Vector2i = entry
+				if not used.has(vector_pos):
+					best_pos = vector_pos
+					best_found = true
+					break
+
+		if best_found:
+			selected.append(best_pos)
+			used[best_pos] = true
+
+	var fallback_index := 0
+	while selected.size() < count and boundary.size() > 0:
+		var candidate: Vector2i = boundary[fallback_index % boundary.size()]
+		fallback_index += 1
+		if not used.has(candidate):
+			selected.append(candidate)
+			used[candidate] = true
+		else:
+			selected.append(candidate)
+		if fallback_index > count * boundary.size():
+			break
+
+	return selected
+
+func _angle_difference(a: float, b: float) -> float:
+	var diff := a - b
+	while diff < -PI:
+		diff += TAU
+	while diff > PI:
+		diff -= TAU
+	return abs(diff)
+
+func _is_green_tile(pos: Vector2i) -> bool:
+	return green_tile_positions.has(pos)
+
+func _is_special_tile(pos: Vector2i) -> bool:
+	return pos == red_tile_pos or _is_green_tile(pos)
+
+func _special_has_exit_to(pos: Vector2i, dir: Vector2i) -> bool:
+	if not tiles.has(pos):
+		return false
+	var tile: Tile = tiles[pos] as Tile
+	return tile.exits.has(dir)
+
+func _remove_invalid_special_neighbors():
+	for pos_key in tiles.keys():
+		var pos: Vector2i = pos_key as Vector2i
+		var tile: Tile = tiles[pos] as Tile
+		for i in range(tile.exits.size() - 1, -1, -1):
+			var dir: Vector2i = tile.exits[i]
+			var neighbor_pos: Vector2i = pos + dir
+			if _is_special_tile(neighbor_pos) and not _special_has_exit_to(neighbor_pos, -dir):
+				tile.exits.remove_at(i)
 
 # ===== УСТАНОВКА ВЫХОДОВ ДЛЯ ТАЙЛА =====
 
@@ -227,15 +327,25 @@ func set_tile_exits(tile: Tile, pos: Vector2i, count: int, force_all: bool = fal
 			max_exits = available_dirs.size()
 		
 		var rand_val := randf()
+		var cumulative := 0.0
 		var num_exits: int
-		if rand_val < 0.05:  # 5% - 1 выход (тупик, минимум)
+		cumulative += exit_chance_one
+		if rand_val < cumulative:
 			num_exits = 1
-		elif rand_val < 0.35:  # 30% - 2 выхода
-			num_exits = min(2, max_exits)
-		elif rand_val < 0.80:  # 45% - 3 выхода
-			num_exits = min(3, max_exits)
-		else:  # 20% - 4 выхода
-			num_exits = min(4, max_exits)
+		else:
+			cumulative += exit_chance_two
+			if rand_val < cumulative:
+				num_exits = min(2, max_exits)
+			else:
+				cumulative += exit_chance_three
+				if rand_val < cumulative:
+					num_exits = min(3, max_exits)
+				else:
+					cumulative += exit_chance_four
+					if rand_val < cumulative:
+						num_exits = min(4, max_exits)
+					else:
+						num_exits = min(4, max_exits)
 		
 		available_dirs.shuffle()
 		
@@ -249,26 +359,86 @@ func set_tile_exits(tile: Tile, pos: Vector2i, count: int, force_all: bool = fal
 				if not neighbor.exits.has(-dir):
 					neighbor.exits.append(-dir)
 
+func _configure_green_tile_exit(tile: Tile, pos: Vector2i):
+	tile.exits.clear()
+	for dir in DIRECTIONS:
+		var neighbor_pos := pos + dir
+		_set_neighbor_exit(neighbor_pos, -dir, false)
+
+	var dir := _choose_green_exit_direction(pos)
+	if dir == Vector2i.ZERO:
+		return
+
+	tile.exits.append(dir)
+	var neighbor_pos := pos + dir
+	_set_neighbor_exit(neighbor_pos, -dir, true)
+
+func _set_neighbor_exit(neighbor_pos: Vector2i, dir: Vector2i, allow: bool):
+	if not tiles.has(neighbor_pos):
+		return
+	var neighbor: Tile = tiles[neighbor_pos] as Tile
+	if allow:
+		if not neighbor.exits.has(dir):
+			neighbor.exits.append(dir)
+	else:
+		if neighbor.exits.has(dir):
+			neighbor.exits.erase(dir)
+
+func _constrain_green_exits():
+	for green_pos in green_tile_positions:
+		if tiles.has(green_pos):
+			var green_tile: Tile = tiles[green_pos] as Tile
+			_configure_green_tile_exit(green_tile, green_pos)
+	_remove_invalid_special_neighbors()
+
+func _choose_green_exit_direction(pos: Vector2i) -> Vector2i:
+	var best_dir := Vector2i.ZERO
+	var best_distance := INF
+	var found_best := false
+
+	for dir: Vector2i in DIRECTIONS:
+		var neighbor_pos: Vector2i = pos + dir
+		if not tiles.has(neighbor_pos):
+			continue
+		var distance := neighbor_pos.distance_to(red_tile_pos)
+		if distance < best_distance:
+			best_distance = distance
+			best_dir = dir
+			found_best = true
+
+	if found_best:
+		return best_dir
+
+	for dir: Vector2i in DIRECTIONS:
+		var neighbor_pos: Vector2i = pos + dir
+		if tiles.has(neighbor_pos):
+			return dir
+
+	return Vector2i.ZERO
+
 # ===== СОЗДАНИЕ СВЯЗНОГО ГРАФА =====
 
-func create_connected_graph(start_pos1: Vector2i, start_pos2: Vector2i):
-	# Используем BFS для создания связного графа от обоих стартовых точек
+func create_connected_graph(green_starts: Array[Vector2i], red_pos: Vector2i):
+	# Используем BFS для создания связного графа от зелёных и красного тайлов
 	var visited := {}
 	var queue: Array[Vector2i] = []
 	
-	# Добавляем оба стартовых тайла в очередь
-	visited[start_pos1] = true
-	visited[start_pos2] = true
-	queue.append(start_pos1)
-	queue.append(start_pos2)
+	for pos in green_starts:
+		if not visited.has(pos):
+			visited[pos] = true
+			queue.append(pos)
+
+	if not visited.has(red_pos):
+		visited[red_pos] = true
+		queue.append(red_pos)
 	
 	# Обрабатываем все тайлы
 	while queue.size() > 0:
 		var current_pos: Vector2i = queue.pop_front()
 		var current_tile: Tile = tiles[current_pos] as Tile
 		
-		# Пропускаем зеленый и красный тайлы - у них уже есть 4 выхода
-		if current_pos == green_tile_pos or current_pos == red_tile_pos:
+		# Пропускаем красный и зеленые тайлы — их выходы уже настроены
+		if _is_special_tile(current_pos):
 			# Просто добавляем их соседей в очередь
 			for dir: Vector2i in current_tile.exits:
 				var neighbor_pos: Vector2i = current_pos + dir
@@ -316,19 +486,20 @@ func create_connected_graph(start_pos1: Vector2i, start_pos2: Vector2i):
 	# Убеждаемся, что все тайлы достижимы
 	# Если есть непосещенные тайлы, создаем к ним связи
 	for pos in tiles.keys():
-		if not visited.has(pos):
-			# Находим ближайший посещенный тайл
-			var nearest_visited: Vector2i
-			var min_distance := INF
-			
-			for visited_pos in visited.keys():
-				var distance: float = pos.distance_to(visited_pos)
-				if distance < min_distance:
-					min_distance = distance
-					nearest_visited = visited_pos
-			
-			# Создаем путь от непосещенного к посещенному
-			create_path_between(pos, nearest_visited)
+		if _is_special_tile(pos) or visited.has(pos):
+			continue
+		# Находим ближайший посещенный тайл
+		var nearest_visited: Vector2i
+		var min_distance := INF
+		
+		for visited_pos in visited.keys():
+			var distance: float = pos.distance_to(visited_pos)
+			if distance < min_distance:
+				min_distance = distance
+				nearest_visited = visited_pos
+		
+		# Создаем путь от непосещенного к посещенному
+		create_path_between(pos, nearest_visited)
 
 # ===== СОЗДАНИЕ ПУТИ МЕЖДУ ДВУМЯ ТАЙЛАМИ =====
 
@@ -360,7 +531,7 @@ func create_path_between(from_pos: Vector2i, to_pos: Vector2i):
 		# Создаем обратную связь
 		var next_pos: Vector2i = current_pos + best_dir
 		var next_tile: Tile = tiles[next_pos] as Tile
-		if not next_tile.exits.has(-best_dir):
+		if not _is_special_tile(next_pos) and not next_tile.exits.has(-best_dir):
 			next_tile.exits.append(-best_dir)
 		
 		current_pos = next_pos
@@ -370,8 +541,8 @@ func create_path_between(from_pos: Vector2i, to_pos: Vector2i):
 func add_random_exits():
 	
 	for pos in tiles.keys():
-		# Пропускаем зеленый и красный тайлы (у них уже 4 выхода)
-		if pos == green_tile_pos or pos == red_tile_pos:
+		# Пропускаем красный и зеленые тайлы — их выходы уже задано
+		if _is_special_tile(pos):
 			continue
 		
 		var tile: Tile = tiles[pos] as Tile
@@ -403,6 +574,15 @@ func add_random_exits():
 					var neighbor: Tile = tiles[neighbor_pos] as Tile
 					if not neighbor.exits.has(-dir):
 						neighbor.exits.append(-dir)
+	
+	# Синхронизируем связи с особыми тайлами, чтобы не было входов туда, где выходов нет
+	_remove_invalid_special_neighbors()
+
+	# Проверяем достижимость каждого зеленого тайла
+	_ensure_green_reachability()
+
+	# Принудительно ограничиваем зеленые тайлы одним выходом
+	_constrain_green_exits()
 
 # ===== СОЗДАНИЕ ТАЙЛА =====
 
@@ -427,8 +607,20 @@ func ensure_path_between(from_pos: Vector2i, to_pos: Vector2i):
 	# Проверяем, есть ли путь от from_pos до to_pos
 	var path := find_path(from_pos, to_pos)
 	if path.size() == 0:
-		# Если пути нет, создаем его
+		# Если пути нет, создаем его (если это не специальные тайлы)
+		if _is_special_tile(from_pos) or _is_special_tile(to_pos):
+			push_warning("Пропущен шаг соединения специальных тайлов, пути нет.")
+			return
 		create_path_between(from_pos, to_pos)
+
+func _ensure_green_reachability():
+	for green_pos in green_tile_positions:
+		for pos_key in tiles.keys():
+			var target_pos: Vector2i = pos_key as Vector2i
+			if green_pos == target_pos:
+				continue
+			if find_path(green_pos, target_pos).size() == 0:
+				create_path_between(green_pos, target_pos)
 
 # ===== ПОИСК ПУТИ (BFS) =====
 
@@ -527,17 +719,25 @@ func create_player():
 	# Устанавливаем ссылку на LevelManager
 	player.level_manager = self
 	
-	# Размещаем игрока на зеленом тайле
-	var green_tile: Tile = tiles[green_tile_pos] as Tile
-	if green_tile:
-		# Сначала обновляем ссылки на игрока во всех тайлах
-		_update_tile_player_references()
-		
-		# Затем инициализируем игрока на тайле (это вызовет on_player_entered)
-		player.initialize_on_tile(green_tile)
-		
-		# Для надежности принудительно обновляем маркеры стартового тайла
-		green_tile.redraw_exit_markers()
+	if green_tile_positions.size() == 0:
+		push_error("Не удалось найти зеленый тайл для игрока")
+		return
+
+	# Размещаем игрока на случайном зеленом тайле
+	var start_pos := green_tile_positions[randi() % green_tile_positions.size()]
+	var green_tile: Tile = tiles.get(start_pos, null) as Tile
+	if not green_tile:
+		push_error("Не удалось получить ссылку на выбранный зеленый тайл")
+		return
+	
+	# Обновляем ссылки на игрока во всех тайлах
+	_update_tile_player_references()
+
+	# Затем инициализируем игрока на тайле (это вызовет on_player_entered)
+	player.initialize_on_tile(green_tile)
+
+	# Для надежности принудительно обновляем маркеры стартового тайла
+	green_tile.redraw_exit_markers()
 
 func _update_tile_player_references():
 	"""Обновляет ссылки на игрока во всех тайлах"""
