@@ -5,7 +5,7 @@ signal active_player_changed(new_player: Player)
 signal active_player_action_points_changed(new_value: int)
 signal new_player_started_moving(new_player: Player)
 
-const TURN_SWITCH_DELAY := 2.0
+const TURN_SWITCH_DELAY := 2
 const CAMERA_MOVE_DURATION := 0.3
 const CAMERA_DELAY := 0.05
 
@@ -121,6 +121,7 @@ func _refill_player_action_points() -> void:
 func _show_player_ui() -> void:
 	if not player_ui:
 		player_ui = get_node_or_null("../UI/PlayerUI")
+	_refresh_player_display()
 	if player_ui:
 		player_ui.show_player_ui()
 
@@ -135,6 +136,11 @@ func _update_day_label() -> void:
 		hud_ui = get_node_or_null("../UI/HUD(cheats)")
 	if hud_ui and hud_ui.has_method("set_day_label"):
 		hud_ui.set_day_label(currentGameDay)
+
+func _refresh_player_display() -> void:
+	var player_manager := get_node_or_null("../PlayerManager")
+	if player_manager and player_manager.has_method("update_active_player_display"):
+		player_manager.call("update_active_player_display", active_player)
 
 func _find_camera_root() -> Node3D:
 	var tree := get_tree()

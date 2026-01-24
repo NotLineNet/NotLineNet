@@ -27,22 +27,12 @@ func _ready():
 	# LevelManager будет установлен через initialize_on_tile()
 
 func _create_player_visual():
-	# Если в сцене уже есть Sprite3D — ничего не делаем, используем его
-	if get_node_or_null("Sprite3D"):
+	# Если в сцене уже есть BodyImage или другой Sprite3D — ничего не делаем, используем его
+	if get_node_or_null("BodyImage"):
 		return
-	# Запасной вариант: создаём сферу (если Player создан через new() без сцены)
 	for child in get_children():
-		child.queue_free()
-	var mesh_instance := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = PLAYER_SIZE / 2.0
-	sphere.height = PLAYER_SIZE
-	mesh_instance.mesh = sphere
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.2, 0.6, 1.0)
-	mesh_instance.material_override = material
-	add_child(mesh_instance)
-	mesh_instance.position = Vector3.ZERO
+		if child is Sprite3D:
+			return
 
 func set_active(active: bool) -> void:
 	if is_active == active:

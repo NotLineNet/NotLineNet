@@ -6,7 +6,7 @@
 [node name="Player" type="Node3D"]
 script = ExtResource("1_wr5hl")
 
-[node name="Sprite3D" type="Sprite3D" parent="."]
+[node name="BodyImage" type="Sprite3D" parent="."]
 transform = Transform3D(0.3, 0, 0, 0, 0.29544234, 0.052094456, 0, -0.052094456, 0.29544234, -0.27, 0, -0.5)
 texture = ExtResource("2_gfjak")
 
