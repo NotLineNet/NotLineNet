@@ -25,6 +25,10 @@ func _ready():
 		button_finish.pressed.connect(_on_button_finish_pressed)
 	_setup_game_manager_connections()
 
+func _on_gameplay_started() -> void:
+	if start_button:
+		start_button.visible = false
+
 func _on_action_points_changed(new_value: int):
 	"""Обновляет визуальное отображение очков действий"""
 	_update_player_ui_action_points(new_value)
@@ -55,6 +59,8 @@ func _setup_game_manager_connections() -> void:
 		game_manager.connect("active_player_action_points_changed", Callable(self, "_on_action_points_changed"))
 	if not game_manager.is_connected("active_player_changed", Callable(self, "_on_active_player_changed")):
 		game_manager.connect("active_player_changed", Callable(self, "_on_active_player_changed"))
+	if not game_manager.is_connected("gameplay_started", Callable(self, "_on_gameplay_started")):
+		game_manager.connect("gameplay_started", Callable(self, "_on_gameplay_started"))
 	_apply_active_player_state(game_manager.active_player)
 
 func _on_active_player_changed(player: Player) -> void:

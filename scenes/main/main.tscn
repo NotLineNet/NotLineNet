@@ -50,7 +50,7 @@ drag_speed = 0.01
 auto_center_on_start = false
 zoom_presets = Array[Dictionary]([{
 "fov": 50.0,
-"position": Vector3(0, 8, 6.3),
+"position": Vector3(0, 2, 0),
 "rotation_x": -33.0
 }, {
 "fov": 60.0,

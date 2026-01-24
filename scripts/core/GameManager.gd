@@ -4,6 +4,7 @@ class_name GameManager
 signal active_player_changed(new_player: Player)
 signal active_player_action_points_changed(new_value: int)
 signal new_player_started_moving(new_player: Player)
+signal gameplay_started
 
 const TURN_SWITCH_DELAY := 2
 const CAMERA_MOVE_DURATION := 0.3
@@ -48,16 +49,21 @@ func _prepare_initial_ui_state() -> void:
 	if hud_ui:
 		hud_ui.visible = true
 
+func _log_state(label: String) -> void:
+	print("Game state: %s" % label)
+
 func game_loaded_full() -> void:
 	if _game_loaded:
 		return
 	_game_loaded = true
+	_log_state("загрузка")
 	start_intro()
 
 func start_intro() -> void:
 	if _intro_started:
 		return
 	_intro_started = true
+	_log_state("кат сцена")
 	_prepare_intro_ui()
 	_prepare_intro_camera()
 	_spawn_intro_cutscene()
@@ -122,7 +128,6 @@ func intro_finished() -> void:
 		ui_layer.visible = true
 	if main_camera:
 		main_camera.current = true
-	game_started()
 
 func _transfer_cutscene_camera_to_main() -> void:
 	var target_root := _find_camera_root()
@@ -169,12 +174,16 @@ func game_started() -> void:
 		intro_finished()
 		if _game_started:
 			return
+	if not _intro_completed:
+		return
 	_game_started = true
+	_log_state("начало игры")
 	_ensure_camera_nodes()
 	_show_game_ui()
 	if camera_root:
 		camera_root.set_follow_enabled(true)
 		camera_root.apply_zoom_preset(0, true)
+	emit_signal("gameplay_started")
 	await _start_first_day()
 
 func register_player(player: Player) -> void:
@@ -221,6 +230,7 @@ func all_players_finished_moving() -> void:
 	_is_waiting_new_day = false
 
 func _start_first_day() -> void:
+	_log_state("игровой день")
 	_refill_player_action_points()
 	if players.size() > 0:
 		set_active_player(players[0])
@@ -231,6 +241,7 @@ func _start_first_day() -> void:
 func start_new_day() -> void:
 	currentGameDay += 1
 	_update_day_label()
+	_log_state("игровой день")
 	_refill_player_action_points()
 	if players.size() > 0:
 		set_active_player(players[0])

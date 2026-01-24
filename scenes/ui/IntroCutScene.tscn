@@ -55,7 +55,7 @@ tracks/1/keys = {
 "times": PackedFloat32Array(0, 2.5333333),
 "transitions": PackedFloat32Array(0.37892944, 1),
 "update": 0,
-"values": [Vector3(0, 8.482, 6.149), Vector3(0, 11.69, 9.945)]
+"values": [Vector3(0, 2.472, 1.329), Vector3(0, 11.69, 9.945)]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_324ql"]
@@ -78,7 +78,7 @@ libraries = {
 transform = Transform3D(1, 0, 0, 0, 0.83867055, 0.54463905, 0, -0.54463905, 0.83867055, 0, 6.627407, 6.1486206)
 
 [node name="Camera3D" type="Camera3D" parent="CameraRoot/CameraPivot"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2.4870303, -4.927151)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 3.4)
 current = true
 fov = 60.0
 near = 0.01
@@ -96,3 +96,4 @@ color = Color(0, 0, 0, 1)
 
 [node name="Tile" parent="." instance=ExtResource("2_33l4l")]
 transform = Transform3D(0.70710677, 0, 0.70710677, 0, 1, 0, -0.70710677, 0, 0.70710677, 0, 0, 0)
+visible = false
