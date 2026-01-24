@@ -20,6 +20,9 @@ script = ExtResource("1_iuonh")
 tile_scene = ExtResource("2_k2fmo")
 player_scene = ExtResource("3_6q06x")
 circle_radius = 5
+exit_chance_two = 0.15
+exit_chance_three = 0.4
+exit_chance_four = 0.4
 
 [node name="PlayerManager" type="Node3D" parent="."]
 script = ExtResource("1_pmy5j")
@@ -122,8 +125,7 @@ anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -20.0
-offset_right = 20.0
-offset_bottom = 40.0
+offset_right = -20.0
 grow_horizontal = 2
 
 [node name="HBoxContainer" type="HBoxContainer" parent="UI/MainHUD/Portraits"]
@@ -131,9 +133,6 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -20.0
-offset_right = 20.0
-offset_bottom = 40.0
 grow_horizontal = 2
 alignment = 1
 
