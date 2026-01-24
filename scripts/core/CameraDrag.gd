@@ -8,11 +8,12 @@ var current_drag_speed: float = 0.05  # Текущая скорость скро
 # ===== ПАРАМЕТРЫ ЗУМА =====
 @export var zoom_speed: float = 5.0  # Скорость интерполяции зума
 @export var camera_center_speed: float = 3.0  # Скорость центрирования камеры на тайле (для пресета 0)
+@export var auto_center_on_start: bool = true  # Центрировать ли на игроке при старте для пресета 0
 
 # Массив зум-пресетов (4 уровня: 0-3)
-# Каждый пресет задает: высоту CameraRig (Y координата), Z позицию CameraPivot, наклон CameraPivot, FOV камеры, скорость скролла
+# Каждый пресет задает: высоту CameraPivot (Y координата), Z позицию CameraPivot, наклон CameraPivot, FOV камеры, скорость скролла
 # Примечание: X координата в position игнорируется - она управляется движением камеры (drag)
-# Z позиция применяется к CameraPivot, чтобы не конфликтовать с движением камеры
+# Z и Y позиции применяются к CameraPivot, чтобы не конфликтовать с движением камеры
 # drag_speed - скорость скролла мышкой (если не указана, используется базовое значение drag_speed)
 @export var zoom_presets: Array[Dictionary] = [
 	# Уровень 0 - максимальное отдаление
@@ -28,6 +29,7 @@ var current_drag_speed: float = 0.05  # Текущая скорость скро
 # ===== ВНУТРЕННИЕ ПЕРЕМЕННЫЕ =====
 var dragging: bool = false
 var last_mouse_pos: Vector2
+var follow_enabled: bool = true  # Управление привязкой к игроку
 
 # Ссылки на узлы камеры
 var camera_pivot: Node3D  # CameraPivot - отвечает за наклон
@@ -38,13 +40,13 @@ var camera: Camera3D      # Camera3D - отвечает за FOV
 var zoom_level: int = 0
 
 # Текущие значения для интерполяции
-var current_position_y: float  # Y позиция CameraRig
+var current_pivot_y: float      # Y позиция CameraPivot
 var current_pivot_z: float      # Z позиция CameraPivot
 var current_rotation_x: float   # Наклон CameraPivot
 var current_fov: float          # FOV Camera3D
 
 # Целевые значения из пресета
-var target_position_y: float
+var target_pivot_y: float
 var target_pivot_z: float
 var target_rotation_x: float
 var target_fov: float
@@ -74,13 +76,18 @@ func _ready():
 	_initialize_presets()
 	
 	# Инициализируем текущие значения из текущего состояния камеры
-	# Y позиция берется из CameraRig, Z позиция из CameraPivot
-	current_position_y = position.y
+	# Y и Z позиции берутся из CameraPivot
+	current_pivot_y = camera_pivot.position.y
 	if camera_pivot:
+		current_pivot_y = camera_pivot.position.y
 		current_pivot_z = camera_pivot.position.z
 		current_rotation_x = camera_pivot.rotation_degrees.x
 	if camera:
 		current_fov = camera.fov
+	target_pivot_y = current_pivot_y
+	target_pivot_z = current_pivot_z
+	target_rotation_x = current_rotation_x
+	target_fov = current_fov
 	
 	# Инициализируем текущую скорость скролла
 	current_drag_speed = drag_speed
@@ -89,7 +96,7 @@ func _ready():
 	_set_zoom_level(zoom_level, false)  # false = без интерполяции при старте
 	
 	# Если начальный уровень 0, центрируем камеру на тайле игрока
-	if zoom_level == 0:
+	if zoom_level == 0 and auto_center_on_start and follow_enabled:
 		_center_camera_on_player_tile()
 
 # ===== ИНИЦИАЛИЗАЦИЯ ПРЕСЕТОВ =====
@@ -158,9 +165,9 @@ func _set_zoom_level(level: int, interpolate: bool = true):
 	var preset_dict: Dictionary = zoom_presets[level]
 	
 	# Устанавливаем целевые значения
-	# Из position берем Y координату (высоту CameraRig) и Z координату (позиция CameraPivot)
+	# Из position берем Y координату (высоту CameraPivot) и Z координату (позиция CameraPivot)
 	var preset_pos: Vector3 = preset_dict.get("position", Vector3.ZERO)
-	target_position_y = preset_pos.y
+	target_pivot_y = preset_pos.y
 	target_pivot_z = preset_pos.z
 	target_rotation_x = preset_dict.get("rotation_x", 0.0)
 	target_fov = preset_dict.get("fov", 50.0)
@@ -170,7 +177,7 @@ func _set_zoom_level(level: int, interpolate: bool = true):
 	
 	# Если интерполяция не нужна, сразу устанавливаем значения
 	if not interpolate:
-		current_position_y = target_position_y
+		current_pivot_y = target_pivot_y
 		current_pivot_z = target_pivot_z
 		current_rotation_x = target_rotation_x
 		current_fov = target_fov
@@ -182,12 +189,8 @@ func _apply_zoom_values():
 	if not camera_pivot or not camera:
 		return
 	
-	# Применяем позицию к CameraRig (этот узел)
-	# Сохраняем X и Z из текущей позиции (X управляется drag, Z не используется в CameraRig)
-	# Меняем только Y (высоту) из пресета
-	position = Vector3(position.x, current_position_y, position.z)
-	
-	# Применяем Z позицию и наклон к CameraPivot
+	# Применяем позицию и наклон к CameraPivot
+	camera_pivot.position.y = current_pivot_y
 	camera_pivot.position.z = current_pivot_z
 	camera_pivot.rotation_degrees.x = current_rotation_x
 	
@@ -200,9 +203,8 @@ func _process(delta: float):
 	if not camera_pivot or not camera:
 		return
 	
-	# Интерполируем позицию CameraRig (только Y координата)
-	# X остается неизменным, управляется движением камеры (drag) или привязан к тайлу на пресете 0
-	current_position_y = lerp(current_position_y, target_position_y, zoom_speed * delta)
+	# Интерполируем позицию CameraPivot по высоте
+	current_pivot_y = lerp(current_pivot_y, target_pivot_y, zoom_speed * delta)
 	
 	# Интерполируем Z позицию CameraPivot
 	current_pivot_z = lerp(current_pivot_z, target_pivot_z, zoom_speed * delta)
@@ -217,7 +219,7 @@ func _process(delta: float):
 	current_fov = lerp(current_fov, target_fov, zoom_speed * delta)
 	
 	# Если на пресете 0 и включен режим центрирования, плавно центрируем камеру на тайле
-	if zoom_level == 0 and is_centering_on_tile:
+	if zoom_level == 0 and is_centering_on_tile and follow_enabled:
 		# Плавно интерполируем позицию камеры к позиции тайла
 		var current_pos := global_position
 		var new_pos := current_pos.lerp(target_tile_position, camera_center_speed * delta)
@@ -228,6 +230,8 @@ func _process(delta: float):
 			is_centering_on_tile = false
 		else:
 			global_position = new_pos
+	elif not follow_enabled:
+		is_centering_on_tile = false
 	
 	# Применяем интерполированные значения
 	_apply_zoom_values()
@@ -235,6 +239,8 @@ func _process(delta: float):
 # ===== ЦЕНТРИРОВАНИЕ КАМЕРЫ НА ТАЙЛЕ ИГРОКА =====
 func _center_camera_on_player_tile():
 	"""Устанавливает цель для плавного центрирования камеры на тайле активного игрока (при переходе на пресет 0)"""
+	if not follow_enabled:
+		return
 	var player := _get_active_player()
 	if not player or not player.current_tile:
 		return
@@ -256,6 +262,9 @@ func center_camera_on_tile(target_tile: Tile):
 	if zoom_level != 0:
 		is_centering_on_tile = false
 		return
+	if not follow_enabled:
+		is_centering_on_tile = false
+		return
 	
 	if not target_tile:
 		return
@@ -274,7 +283,40 @@ func _get_active_player() -> Player:
 	var tree := get_tree()
 	if not tree:
 		return null
-	var gm := tree.get_first_node_in_group("game_manager") as GameManager
+	var gm := tree.get_first_node_in_group("game_manager")
 	if not gm:
 		return null
-	return gm.active_player
+	return gm.get("active_player") as Player
+
+func set_follow_enabled(enabled: bool) -> void:
+	follow_enabled = enabled
+	if not follow_enabled:
+		is_centering_on_tile = false
+
+func apply_zoom_preset(level: int, interpolate: bool = true) -> void:
+	_set_zoom_level(level, interpolate)
+
+func sync_targets_to_current() -> void:
+	if not camera_pivot or not camera:
+		return
+	current_pivot_y = camera_pivot.position.y
+	current_pivot_z = camera_pivot.position.z
+	current_rotation_x = camera_pivot.rotation_degrees.x
+	current_fov = camera.fov
+	target_pivot_y = current_pivot_y
+	target_pivot_z = current_pivot_z
+	target_rotation_x = current_rotation_x
+	target_fov = current_fov
+
+func apply_external_camera_state(root_position: Vector3, pivot_transform: Transform3D, fov_value: float) -> void:
+	global_position = root_position
+	if camera_pivot:
+		camera_pivot.global_transform = pivot_transform
+	if camera:
+		camera.fov = fov_value
+	sync_targets_to_current()
+
+func get_camera_height() -> float:
+	if camera_pivot:
+		return camera_pivot.global_position.y
+	return global_position.y

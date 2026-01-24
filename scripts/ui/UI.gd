@@ -2,6 +2,7 @@ extends PanelContainer
 
 @onready var reload_button: Button = $HBoxContainer/ReloadButton
 @onready var way_button: Button = $HBoxContainer/WayButton
+@onready var start_button: Button = $HBoxContainer/StartButton
 @onready var player_ui_action_points: HBoxContainer = $"../PlayerUI/PanelRoot/ActionPoints"
 @onready var button_finish: Button = $"../PlayerUI/PanelRoot/ButtonFinish"
 @onready var player_ui := $"../PlayerUI"
@@ -15,6 +16,9 @@ func _ready():
 	_find_level_manager()
 	way_button.pressed.connect(_on_way_button_pressed)
 	reload_button.pressed.connect(_on_reload_button_pressed)
+	if start_button:
+		start_button.visible = true
+		start_button.pressed.connect(_on_start_button_pressed)
 	_update_way_button_text()
 	if button_finish:
 		button_finish.visible = false
@@ -102,6 +106,10 @@ func _on_reload_button_pressed() -> void:
 func _on_button_finish_pressed() -> void:
 	if game_manager:
 		game_manager.current_player_finished_moving()
+
+func _on_start_button_pressed() -> void:
+	if game_manager:
+		game_manager.game_started()
 
 func set_day_label(day: int) -> void:
 	if day_label:

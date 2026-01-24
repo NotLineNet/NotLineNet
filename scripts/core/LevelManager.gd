@@ -82,6 +82,9 @@ func create_grid():
 
 	# Создаем и размещаем игроков на зеленых тайлах
 	create_players()
+	var gm := _get_game_manager()
+	if gm and gm.has_method("game_loaded_full"):
+		gm.call_deferred("game_loaded_full")
 
 func _init_path_debug_root():
 	if path_debug_root:

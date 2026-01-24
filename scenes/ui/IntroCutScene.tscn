@@ -1,0 +1,98 @@
+[gd_scene load_steps=6 format=3 uid="uid://b77erw48s60q3"]
+
+[ext_resource type="Script" uid="uid://dmlilsv4seqgq" path="res://scripts/ui/IntroCutScene.gd" id="1_xd3vn"]
+[ext_resource type="PackedScene" uid="uid://34iqiybudqgv" path="res://scenes/tile/Tile.tscn" id="2_33l4l"]
+
+[sub_resource type="Animation" id="Animation_lnctw"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("UI/BlackFade:color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Color(0, 0, 0, 1)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("CameraRoot/CameraPivot:position")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector3(0, 6.627407, 6.1486206)]
+}
+
+[sub_resource type="Animation" id="Animation_33l4l"]
+resource_name = "intro_camera_out"
+length = 3.0
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("UI/BlackFade:color")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1.4333333),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Color(0, 0, 0, 1), Color(0, 0, 0, 0)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("CameraRoot/CameraPivot:position")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 2.5333333),
+"transitions": PackedFloat32Array(0.37892944, 1),
+"update": 0,
+"values": [Vector3(0, 8.482, 6.149), Vector3(0, 11.69, 9.945)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_324ql"]
+_data = {
+&"RESET": SubResource("Animation_lnctw"),
+&"intro_camera_out": SubResource("Animation_33l4l")
+}
+
+[node name="IntroCutScene" type="Node3D"]
+script = ExtResource("1_xd3vn")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_324ql")
+}
+
+[node name="CameraRoot" type="Node3D" parent="."]
+
+[node name="CameraPivot" type="Node3D" parent="CameraRoot"]
+transform = Transform3D(1, 0, 0, 0, 0.83867055, 0.54463905, 0, -0.54463905, 0.83867055, 0, 6.627407, 6.1486206)
+
+[node name="Camera3D" type="Camera3D" parent="CameraRoot/CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2.4870303, -4.927151)
+current = true
+fov = 60.0
+near = 0.01
+far = 100.0
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="BlackFade" type="ColorRect" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="Tile" parent="." instance=ExtResource("2_33l4l")]
+transform = Transform3D(0.70710677, 0, 0.70710677, 0, 1, 0, -0.70710677, 0, 0.70710677, 0, 0, 0)
