@@ -9,6 +9,7 @@ const Directions = preload("res://scripts/core/Directions.gd")
 @export var circle_radius: int = 9
 @export var green_circle_radius: int = 5
 @export var path_line_color: Color = Color(1, 0.75, 0.25, 0.9)
+@export var path_line_highlight_color: Color = Color(0.2, 1, 0.2, 0.9)
 @export var path_line_thickness: float = 0.25
 @export var path_line_height: float = 0.12
 @export var loop_connection_chance: float = 0.28
@@ -22,13 +23,21 @@ var green_tile_positions: Array[Vector2i] = []
 var red_tile_pos: Vector2i
 var path_debug_root: Node3D
 var path_debug_lines_built: bool = false
-var path_line_material: StandardMaterial3D
+var path_line_nodes: Dictionary = {}
+var highlighted_path_lines: Array[MeshInstance3D] = []
+var path_debug_enabled: bool = false
+var tracked_active_player: Player
+var _player_moved_callable: Callable
+var _active_player_changed_callable: Callable
 
 func _ready():
 	randomize()
+	_player_moved_callable = Callable(self, "_on_player_moved_to_tile")
+	_active_player_changed_callable = Callable(self, "_on_active_player_changed")
 	_init_path_debug_root()
 	add_to_group("level_manager")
 	create_grid()
+	_connect_game_manager_signals()
 
 # ===== СОЗДАНИЕ СЕТКИ =====
 
@@ -85,24 +94,24 @@ func _grid_to_world(pos: Vector2) -> Vector3:
 func _clear_path_debug_lines():
 	if not path_debug_root:
 		return
+	_clear_highlighted_path()
 	for child in path_debug_root.get_children():
 		child.queue_free()
+	path_line_nodes.clear()
 	path_debug_lines_built = false
 
-func _get_path_line_material() -> StandardMaterial3D:
-	if not path_line_material:
-		path_line_material = StandardMaterial3D.new()
-		path_line_material.albedo_color = path_line_color
-		path_line_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		path_line_material.flags_transparent = true
-		path_line_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	return path_line_material
+func _create_path_line_material(color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.flags_transparent = true
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return material
 
 func build_path_debug_lines():
 	if not path_debug_root:
 		return
 	_clear_path_debug_lines()
-	var material := _get_path_line_material()
 	for pos_key in tiles.keys():
 		var pos: Vector2i = pos_key as Vector2i
 		var tile := tiles[pos] as Tile
@@ -131,7 +140,7 @@ func build_path_debug_lines():
 			size.y = path_line_height
 			mesh.size = size
 			line.mesh = mesh
-			line.material_override = material
+			line.material_override = _create_path_line_material(path_line_color)
 			var midpoint := Vector2(
 				float(pos.x + neighbor_pos.x) / 2.0,
 				float(pos.y + neighbor_pos.y) / 2.0
@@ -140,14 +149,135 @@ func build_path_debug_lines():
 			center.y = path_line_height * 0.5
 			line.position = center
 			path_debug_root.add_child(line)
+			var forward_key := _line_key(pos, neighbor_pos)
+			var backward_key := _line_key(neighbor_pos, pos)
+			path_line_nodes[forward_key] = line
+			path_line_nodes[backward_key] = line
 	path_debug_lines_built = true
+	if path_debug_enabled:
+		_update_path_highlight_to_active_player()
 
 func set_path_debug_visible(enabled: bool):
 	if not path_debug_root:
 		return
-	if enabled and not path_debug_lines_built:
-		build_path_debug_lines()
+	path_debug_enabled = enabled
+
+	if enabled:
+		if not path_debug_lines_built:
+			build_path_debug_lines()
+		else:
+			_update_path_highlight_to_active_player()
+	else:
+		_clear_highlighted_path()
+
 	path_debug_root.visible = enabled
+
+func _line_key(from_pos: Vector2i, to_pos: Vector2i) -> String:
+	return "%d,%d->%d,%d" % [from_pos.x, from_pos.y, to_pos.x, to_pos.y]
+
+func _update_path_highlight_to_active_player():
+	if not path_debug_enabled or not path_debug_lines_built:
+		return
+
+	var gm := _get_game_manager()
+	if not gm or not gm.active_player or not gm.active_player.current_tile:
+		_clear_highlighted_path()
+		return
+
+	var start_pos: Vector2i = gm.active_player.current_tile.grid_pos
+	var path := _find_path_between_positions(start_pos, red_tile_pos)
+	_clear_highlighted_path()
+	if path.size() > 1:
+		_apply_highlight_for_path(path)
+
+func _apply_highlight_for_path(path: Array[Vector2i]) -> void:
+	for i in range(path.size() - 1):
+		var key := _line_key(path[i], path[i + 1])
+		var line := path_line_nodes.get(key, null) as MeshInstance3D
+		if line:
+			line.material_override = _create_path_line_material(path_line_highlight_color)
+			highlighted_path_lines.append(line)
+
+func _clear_highlighted_path():
+	for line in highlighted_path_lines:
+		if line and line.is_inside_tree():
+			line.material_override = _create_path_line_material(path_line_color)
+	highlighted_path_lines.clear()
+
+func _find_path_between_positions(start_pos: Vector2i, target_pos: Vector2i) -> Array[Vector2i]:
+	if start_pos == target_pos:
+		return [start_pos] as Array[Vector2i]
+	if not tiles.has(start_pos) or not tiles.has(target_pos):
+		return [] as Array[Vector2i]
+
+	var queue: Array[Vector2i] = [start_pos]
+	var visited := {start_pos: true}
+	var parent_map: Dictionary = {}
+
+	while queue.size() > 0:
+		var current_pos: Vector2i = queue.pop_front()
+		var tile := tiles.get(current_pos, null) as Tile
+		if not tile:
+			continue
+
+		for dir in tile.exits:
+			var neighbor_pos: Vector2i = current_pos + dir
+			if visited.has(neighbor_pos) or not tiles.has(neighbor_pos):
+				continue
+			parent_map[neighbor_pos] = current_pos
+			if neighbor_pos == target_pos:
+				return _reconstruct_path(parent_map, start_pos, target_pos)
+			visited[neighbor_pos] = true
+			queue.append(neighbor_pos)
+
+	return [] as Array[Vector2i]
+
+func _reconstruct_path(parent_map: Dictionary, start_pos: Vector2i, target_pos: Vector2i) -> Array[Vector2i]:
+	var path: Array[Vector2i] = [target_pos]
+	var current_pos: Vector2i = target_pos
+	while current_pos != start_pos:
+		if not parent_map.has(current_pos):
+			return [] as Array[Vector2i]
+		current_pos = parent_map[current_pos] as Vector2i
+		path.insert(0, current_pos)
+	return path
+
+func _connect_game_manager_signals():
+	var gm := _get_game_manager()
+	if not gm:
+		return
+
+	if _active_player_changed_callable and not gm.is_connected("active_player_changed", _active_player_changed_callable):
+		gm.connect("active_player_changed", _active_player_changed_callable)
+
+	_track_active_player_for_highlight(gm.active_player)
+	_update_path_highlight_to_active_player()
+
+func _track_active_player_for_highlight(player: Player) -> void:
+	if tracked_active_player == player:
+		return
+
+	_disconnect_tracked_player()
+	if not player or not _player_moved_callable:
+		return
+
+	tracked_active_player = player
+	if not player.is_connected("moved_to_tile", _player_moved_callable):
+		player.connect("moved_to_tile", _player_moved_callable)
+
+func _disconnect_tracked_player():
+	if tracked_active_player and _player_moved_callable and tracked_active_player.is_connected("moved_to_tile", _player_moved_callable):
+		tracked_active_player.disconnect("moved_to_tile", _player_moved_callable)
+	tracked_active_player = null
+
+func _on_active_player_changed(player: Player) -> void:
+	_track_active_player_for_highlight(player)
+	_update_path_highlight_to_active_player()
+
+func _on_player_moved_to_tile(_tile: Tile) -> void:
+	if not path_debug_enabled:
+		return
+	_update_path_highlight_to_active_player()
 
 # ===== ПОСТРОЕНИЕ КРУГА =====
 func _build_circle_layer(center: Vector2i, radius: int) -> Dictionary:

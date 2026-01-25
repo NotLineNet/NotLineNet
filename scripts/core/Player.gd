@@ -5,6 +5,7 @@ const GameConfig = preload("res://scripts/core/GameConfig.gd")
 const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 
 signal action_points_changed(new_value: int)
+signal moved_to_tile(new_tile: Tile)
 
 const MAX_ACTION_POINTS := GameConfig.MAX_ACTION_POINTS
 const MIN_ACTION_POINTS := GameConfig.MIN_ACTION_POINTS
@@ -156,6 +157,7 @@ func move_to_tile(target_tile: Tile):
 	
 	# Вычитаем очко действия при переходе на новый тайл
 	spend_action_point()
+	emit_signal("moved_to_tile", current_tile)
 	
 	is_moving = false
 
