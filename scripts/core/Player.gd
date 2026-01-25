@@ -1,21 +1,20 @@
 extends Node3D
 class_name Player
 
-const MOVE_DURATION := 0.2  # Длительность анимации движения в секундах
-const CAMERA_MOVE_DURATION := 0.3  # Длительность анимации движения камеры (немного дольше)
-const CAMERA_DELAY := 0.05  # Небольшое отставание перед началом движения камеры
+const GameConfig = preload("res://scripts/core/GameConfig.gd")
+const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 
 signal action_points_changed(new_value: int)
 
-const MAX_ACTION_POINTS := 3
-const MIN_ACTION_POINTS := 0
+const MAX_ACTION_POINTS := GameConfig.MAX_ACTION_POINTS
+const MIN_ACTION_POINTS := GameConfig.MIN_ACTION_POINTS
 
 var current_tile: Tile
 var previous_tile: Tile  # Для возврата на предыдущий тайл
 var is_moving := false
 var is_active := false
 var level_manager: LevelManager
-var action_points: int = 3  # Количество очков действий
+var action_points: int = GameConfig.MAX_ACTION_POINTS  # Количество очков действий
 
 # Размер игрока - половина размера тайла (TILE_SIZE = 2.0, значит игрок = 1.0)
 const PLAYER_SIZE := 1.0
@@ -42,7 +41,6 @@ func set_active(active: bool) -> void:
 	is_active = active
 	if is_active and current_tile:
 		current_tile.on_player_entered()
-		_move_camera_to_tile_immediate(current_tile)
 
 func initialize_on_tile(tile: Tile):
 	"""Размещает игрока на указанном тайле (стартовый зеленый тайл)"""
@@ -135,7 +133,7 @@ func move_to_tile(target_tile: Tile):
 	var tween := create_tween()
 	tween.set_ease(Tween.EASE_IN_OUT)
 	tween.set_trans(Tween.TRANS_CUBIC)
-	tween.tween_property(self, "global_position", target_position, MOVE_DURATION)
+	tween.tween_property(self, "global_position", target_position, GameConfig.PLAYER_MOVE_DURATION)
 	
 	# Перемещаем камеру с небольшим отставанием
 	_move_camera_to_tile(target_tile)
@@ -188,6 +186,10 @@ func refill_action_points():
 		action_points = MAX_ACTION_POINTS
 		action_points_changed.emit(action_points)
 
+func reset_for_new_day():
+	"""Сбрасывает состояние на начало дня без изменения позиции"""
+	previous_tile = null
+
 func spend_action_point():
 	"""Тратит одно очко действия (минимум MIN_ACTION_POINTS)"""
 	if action_points > MIN_ACTION_POINTS:
@@ -198,78 +200,28 @@ func _move_camera_to_tile(target_tile: Tile):
 	"""Перемещает камеру на позицию тайла с изингом и небольшим отставанием"""
 	if not is_active:
 		return
-	# Находим CameraRoot в дереве сцены
-	var camera_root: CameraDrag = null
-	
-	# Пробуем найти через дерево сцены (группа)
-	var tree := get_tree()
-	if tree:
-		camera_root = tree.get_first_node_in_group("camera_root") as CameraDrag
-	
-	# Если не нашли через группу, пробуем через путь
-	if not camera_root:
-		camera_root = get_node_or_null("../../CameraRoot") as CameraDrag
-	
-	# Если все еще не нашли, пробуем абсолютный путь
-	if not camera_root:
-		camera_root = get_node_or_null("/root/Main/CameraRoot") as CameraDrag
-	
+	var camera_root := NodeLocator.camera_root(self)
 	if not camera_root:
 		return
-	
-	# Если камера на пресете 0, используем метод центрирования (камера привязана к тайлу)
 	if camera_root.zoom_level == 0:
 		camera_root.center_camera_on_tile(target_tile)
 		return
-	
-	# Обычное перемещение камеры с отставанием (для других пресетов)
-	var target_camera_position := Vector3(
-		target_tile.global_position.x,
-		camera_root.global_position.y,  # Сохраняем текущую высоту камеры
-		target_tile.global_position.z
+	camera_root.focus_on_tile(
+		target_tile,
+		GameConfig.CAMERA_DELAY,
+		GameConfig.CAMERA_MOVE_DURATION
 	)
-	
-	# Создаем твин для камеры с изингом и отставанием
-	var camera_tween := create_tween()
-	camera_tween.set_ease(Tween.EASE_IN_OUT)
-	camera_tween.set_trans(Tween.TRANS_CUBIC)
-	
-	# Добавляем небольшую задержку перед началом движения камеры
-	camera_tween.tween_interval(CAMERA_DELAY)
-	camera_tween.tween_property(camera_root, "global_position", target_camera_position, CAMERA_MOVE_DURATION)
 
 func _move_camera_to_tile_immediate(target_tile: Tile):
 	"""Перемещает камеру на позицию тайла без задержки (для инициализации)"""
 	if not is_active:
 		return
-	# Находим CameraRoot в дереве сцены
-	var camera_root: Node3D = null
-	
-	# Пробуем найти через дерево сцены (группа)
-	var tree := get_tree()
-	if tree:
-		camera_root = tree.get_first_node_in_group("camera_root") as Node3D
-	
-	# Если не нашли через группу, пробуем через путь
-	if not camera_root:
-		camera_root = get_node_or_null("../../CameraRoot") as Node3D
-	
-	# Если все еще не нашли, пробуем абсолютный путь
-	if not camera_root:
-		camera_root = get_node_or_null("/root/Main/CameraRoot") as Node3D
-	
+	var camera_root := NodeLocator.camera_root(self)
 	if not camera_root:
 		return
-	
-	# Вычисляем целевую позицию камеры (только x и z, y остается прежним)
 	var target_camera_position := Vector3(
 		target_tile.global_position.x,
-		camera_root.global_position.y,  # Сохраняем текущую высоту камеры
+		camera_root.global_position.y,
 		target_tile.global_position.z
 	)
-	
-	# Создаем твин для камеры с изингом (без задержки)
-	var camera_tween := create_tween()
-	camera_tween.set_ease(Tween.EASE_IN_OUT)
-	camera_tween.set_trans(Tween.TRANS_CUBIC)
-	camera_tween.tween_property(camera_root, "global_position", target_camera_position, CAMERA_MOVE_DURATION)
+	camera_root.global_position = target_camera_position

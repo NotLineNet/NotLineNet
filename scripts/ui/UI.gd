@@ -84,10 +84,6 @@ func _on_od_button_pressed() -> void:
 	# Если активный игрок найден, добавляем очко действия
 	if game_manager and game_manager.active_player:
 		game_manager.active_player.add_action_point()
-	else:
-		_find_level_manager()
-		if level_manager:
-			level_manager.set_path_debug_visible(paths_visible)
 
 func _find_level_manager():
 	var tree := get_tree()

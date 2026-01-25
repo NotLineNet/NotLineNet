@@ -1,6 +1,9 @@
 extends Node3D
 class_name LevelManager
 
+const GameConfig = preload("res://scripts/core/GameConfig.gd")
+const Directions = preload("res://scripts/core/Directions.gd")
+
 @export var tile_scene: PackedScene
 @export var player_scene: PackedScene
 @export var circle_radius: int = 9
@@ -14,13 +17,8 @@ class_name LevelManager
 @export var exit_chance_three: float = 0.60
 @export var exit_chance_four: float = 0.15
 
-const TILE_SIZE := 4
-const DIRECTIONS: Array[Vector2i] = [
-	Vector2i.UP,
-	Vector2i.DOWN,
-	Vector2i.LEFT,
-	Vector2i.RIGHT
-]
+const TILE_SIZE := GameConfig.TILE_SIZE
+const DIRECTIONS: Array[Vector2i] = Directions.ALL
 
 var tiles: Dictionary = {}
 var green_tile_positions: Array[Vector2i] = []
@@ -203,9 +201,6 @@ func _pick_green_tile_positions(circle_info: Dictionary, center: Vector2i, count
 			for entry in raw_positions:
 				if entry is Vector2i:
 					boundary.append(entry)
-
-	if boundary.size() == 0:
-		return []
 
 	if boundary.size() == 0:
 		return []

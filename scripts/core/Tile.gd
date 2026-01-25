@@ -1,5 +1,6 @@
 extends Node3D
 class_name Tile
+const GameConfig = preload("res://scripts/core/GameConfig.gd")
 
 signal exit_clicked(tile: Tile, dir: Vector2i)
 signal tile_clicked(tile: Tile)
@@ -9,13 +10,13 @@ var exits: Array[Vector2i] = []
 var exit_markers: Dictionary = {}  # Хранит маркеры выходов по направлению
 var base_room: Node3D
 
-const EXIT_MARKER_SIZE := Vector3(0.3, 0.3, 0.3)
-const EXIT_OFFSET := 0.9
-const HOVER_SCALE := 1.2
-const NORMAL_SCALE := 1.0
+const EXIT_MARKER_SIZE := GameConfig.EXIT_MARKER_SIZE
+const EXIT_OFFSET := GameConfig.EXIT_OFFSET
+const HOVER_SCALE := GameConfig.HOVER_SCALE
+const NORMAL_SCALE := GameConfig.NORMAL_SCALE
 
-const GATE_COLOR_ACTIVE := Color(0.2, 1.0, 0.2)
-const GATE_COLOR_INACTIVE := Color(0.5, 0.5, 0.5)
+const GATE_COLOR_ACTIVE := GameConfig.GATE_COLOR_ACTIVE
+const GATE_COLOR_INACTIVE := GameConfig.GATE_COLOR_INACTIVE
 
 func set_color(color: Color):
 	var mesh_instance := get_node_or_null("MeshInstance3D")
@@ -33,7 +34,8 @@ func _ready():
 	
 	var active_player := _get_active_player()
 	if active_player:
-		var player_pos = Vector2i(round(active_player.global_position.x / 2.0), round(active_player.global_position.z / 2.0))
+		var half_tile := GameConfig.TILE_SIZE * 0.5
+		var player_pos = Vector2i(round(active_player.global_position.x / half_tile), round(active_player.global_position.z / half_tile))
 		if player_pos == grid_pos:
 			on_player_entered()
 
@@ -97,7 +99,8 @@ func _get_current_gate_color() -> Color:
 		return GATE_COLOR_INACTIVE
 		
 	# Проверяем позицию, так как ссылка на current_tile может быть еще не обновлена
-	var player_pos = Vector2i(round(active_player.global_position.x / 2.0), round(active_player.global_position.z / 2.0))
+	var half_tile := GameConfig.TILE_SIZE * 0.5
+	var player_pos = Vector2i(round(active_player.global_position.x / half_tile), round(active_player.global_position.z / half_tile))
 	if player_pos == grid_pos:
 		return GATE_COLOR_ACTIVE
 		
@@ -178,7 +181,17 @@ func _get_active_player() -> Player:
 func hide_tile():
 	if base_room:
 		base_room.visible = false
+	for marker in exit_markers.values():
+		marker.input_ray_pickable = false
+		var shape := marker.get_node_or_null("CollisionShape3D") as CollisionShape3D
+		if shape:
+			shape.disabled = true
 
 func show_tile():
 	if base_room:
 		base_room.visible = true
+	for marker in exit_markers.values():
+		marker.input_ray_pickable = true
+		var shape := marker.get_node_or_null("CollisionShape3D") as CollisionShape3D
+		if shape:
+			shape.disabled = false

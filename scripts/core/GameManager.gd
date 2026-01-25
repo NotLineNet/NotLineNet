@@ -6,25 +6,22 @@ signal active_player_action_points_changed(new_value: int)
 signal new_player_started_moving(new_player: Player)
 signal gameplay_started
 
-const TURN_SWITCH_DELAY := 2
-const CAMERA_MOVE_DURATION := 0.3
-const CAMERA_DELAY := 0.05
+const GameConfig = preload("res://scripts/core/GameConfig.gd")
+const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
+enum GameState { INIT, INTRO, PLAY, SWITCHING_TURN, WAITING_NEW_DAY }
 const INTRO_SCENE_PATH := "res://scenes/ui/IntroCutScene.tscn"
 
 @export var total_players: int = 3
 @export var intro_scene: PackedScene = preload(INTRO_SCENE_PATH)
 
-var currentGameDay: int = 1
+var current_game_day: int = 1
 var players: Array[Player] = []
-var _is_waiting_new_day := false
-var _is_switching_turn := false
 var active_player: Player
 var _active_player_index: int = -1
 var _intro_instance: IntroCutSceneController
 var _intro_started := false
 var _intro_completed := false
-var _game_loaded := false
-var _game_started := false
+var state: GameState = GameState.INIT
 
 @onready var player_ui := get_node_or_null("../UI/PlayerUI")
 @onready var hud_ui := get_node_or_null("../UI/HUD(cheats)")
@@ -53,15 +50,16 @@ func _log_state(label: String) -> void:
 	print("Game state: %s" % label)
 
 func game_loaded_full() -> void:
-	if _game_loaded:
+	if state != GameState.INIT:
 		return
-	_game_loaded = true
+	state = GameState.INTRO
 	_log_state("загрузка")
 	start_intro()
 
 func start_intro() -> void:
 	if _intro_started:
 		return
+	state = GameState.INTRO
 	_intro_started = true
 	_log_state("кат сцена")
 	_prepare_intro_ui()
@@ -122,6 +120,8 @@ func intro_finished() -> void:
 	if _intro_completed:
 		return
 	_intro_completed = true
+	if state == GameState.INTRO:
+		state = GameState.INIT
 	_ensure_camera_nodes()
 	_transfer_cutscene_camera_to_main()
 	_cleanup_intro_scene()
@@ -169,15 +169,15 @@ func _show_game_ui() -> void:
 	_update_day_label()
 
 func game_started() -> void:
-	if _game_started:
+	if state == GameState.PLAY:
 		return
 	if _intro_started and not _intro_completed:
 		intro_finished()
-		if _game_started:
+		if state == GameState.PLAY:
 			return
 	if not _intro_completed:
 		return
-	_game_started = true
+	state = GameState.PLAY
 	_log_state("начало игры")
 	_ensure_camera_nodes()
 	_show_game_ui()
@@ -201,16 +201,16 @@ func register_player(player: Player) -> void:
 		player.set_active(false)
 
 func current_player_finished_moving() -> void:
-	if _is_switching_turn or not active_player:
+	if state == GameState.SWITCHING_TURN or not active_player:
 		return
-	_is_switching_turn = true
+	state = GameState.SWITCHING_TURN
 	_hide_player_ui()
-	var timer := get_tree().create_timer(TURN_SWITCH_DELAY)
+	var timer := get_tree().create_timer(GameConfig.TURN_SWITCH_DELAY)
 	await timer.timeout
 	var moved := await _move_to_next_player()
 	if not moved:
 		await all_players_finished_moving()
-	_is_switching_turn = false
+	state = GameState.PLAY
 
 func _move_to_next_player() -> bool:
 	if players.size() == 0 or _active_player_index == -1:
@@ -225,11 +225,11 @@ func _move_to_next_player() -> bool:
 	return true
 
 func all_players_finished_moving() -> void:
-	if _is_waiting_new_day:
+	if state == GameState.WAITING_NEW_DAY:
 		return
-	_is_waiting_new_day = true
+	state = GameState.WAITING_NEW_DAY
 	await start_new_day()
-	_is_waiting_new_day = false
+	state = GameState.PLAY
 
 func _start_first_day() -> void:
 	_log_state("игровой день")
@@ -241,7 +241,7 @@ func _start_first_day() -> void:
 		emit_signal("new_player_started_moving", active_player)
 
 func start_new_day() -> void:
-	currentGameDay += 1
+	current_game_day += 1
 	_update_day_label()
 	_log_state("игровой день")
 	_refill_player_action_points()
@@ -287,6 +287,8 @@ func _on_active_player_action_points_changed(new_value: int) -> void:
 
 func _refill_player_action_points() -> void:
 	for player in players:
+		if player.has_method("reset_for_new_day"):
+			player.reset_for_new_day()
 		player.refill_action_points()
 
 func _show_player_ui() -> void:
@@ -306,7 +308,7 @@ func _update_day_label() -> void:
 	if not hud_ui:
 		hud_ui = get_node_or_null("../UI/HUD(cheats)")
 	if hud_ui and hud_ui.has_method("set_day_label"):
-		hud_ui.set_day_label(currentGameDay)
+		hud_ui.set_day_label(current_game_day)
 
 func _refresh_player_display() -> void:
 	var player_manager := get_node_or_null("../PlayerManager")
@@ -316,14 +318,7 @@ func _refresh_player_display() -> void:
 func _find_camera_root() -> CameraDrag:
 	if camera_root:
 		return camera_root
-	var tree := get_tree()
-	var found: CameraDrag = null
-	if tree:
-		found = tree.get_first_node_in_group("camera_root") as CameraDrag
-	if not found:
-		found = get_node_or_null("../../CameraRoot") as CameraDrag
-	if not found:
-		found = get_node_or_null("/root/Main/CameraRoot") as CameraDrag
+	var found := NodeLocator.camera_root(self)
 	if found and not camera_root:
 		camera_root = found
 	return found
@@ -334,14 +329,10 @@ func _focus_camera_on_active_player() -> void:
 	var target_root := _find_camera_root()
 	if not target_root:
 		return
-	var target_position := Vector3(
-		active_player.current_tile.global_position.x,
-		target_root.global_position.y,
-		active_player.current_tile.global_position.z
+	var tween := target_root.focus_on_tile(
+		active_player.current_tile,
+		GameConfig.CAMERA_DELAY,
+		GameConfig.CAMERA_MOVE_DURATION
 	)
-	var camera_tween := target_root.create_tween()
-	camera_tween.set_ease(Tween.EASE_IN_OUT)
-	camera_tween.set_trans(Tween.TRANS_CUBIC)
-	camera_tween.tween_interval(CAMERA_DELAY)
-	camera_tween.tween_property(target_root, "global_position", target_position, CAMERA_MOVE_DURATION)
-	await camera_tween.finished
+	if tween:
+		await tween.finished

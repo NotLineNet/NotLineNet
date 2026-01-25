@@ -326,3 +326,21 @@ func get_camera_height() -> float:
 	if camera_pivot:
 		return camera_pivot.global_position.y
 	return global_position.y
+
+func focus_on_tile(target_tile: Tile, delay: float, duration: float) -> Tween:
+	if not target_tile:
+		return null
+	var target_position := Vector3(
+		target_tile.global_position.x,
+		global_position.y,
+		target_tile.global_position.z
+	)
+	if global_position == target_position:
+		return null
+	var tween := create_tween()
+	tween.set_ease(Tween.EASE_IN_OUT)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	if delay > 0.0:
+		tween.tween_interval(delay)
+	tween.tween_property(self, "global_position", target_position, duration)
+	return tween
