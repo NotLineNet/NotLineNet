@@ -91,6 +91,7 @@ func _prepare_intro_camera() -> void:
 		camera_root.set_follow_enabled(false)
 		camera_root.sync_targets_to_current()
 		_center_game_camera(camera_root)
+		camera_root.set_input_enabled(false)
 	if main_camera:
 		main_camera.current = false
 
@@ -183,6 +184,7 @@ func game_started() -> void:
 	if camera_root:
 		camera_root.set_follow_enabled(true)
 		camera_root.apply_zoom_preset(0, true)
+		camera_root.set_input_enabled(true)
 	emit_signal("gameplay_started")
 	await _start_first_day()
 

@@ -28,6 +28,7 @@ func _ready():
 func _on_gameplay_started() -> void:
 	if start_button:
 		start_button.visible = false
+	_highlight_active_portrait()
 
 func _on_action_points_changed(new_value: int):
 	"""Обновляет визуальное отображение очков действий"""
@@ -62,6 +63,13 @@ func _setup_game_manager_connections() -> void:
 	if not game_manager.is_connected("gameplay_started", Callable(self, "_on_gameplay_started")):
 		game_manager.connect("gameplay_started", Callable(self, "_on_gameplay_started"))
 	_apply_active_player_state(game_manager.active_player)
+	_highlight_active_portrait()
+
+func _highlight_active_portrait() -> void:
+	var player_manager := get_node_or_null("../../PlayerManager") as PlayerManager
+	if not player_manager:
+		return
+	player_manager.highlight_active_portrait()
 
 func _on_active_player_changed(player: Player) -> void:
 	_apply_active_player_state(player)

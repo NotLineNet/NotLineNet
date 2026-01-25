@@ -30,6 +30,7 @@ var current_drag_speed: float = 0.05  # Текущая скорость скро
 var dragging: bool = false
 var last_mouse_pos: Vector2
 var follow_enabled: bool = true  # Управление привязкой к игроку
+var input_enabled: bool = true  # Управление входом камеры
 
 # Ссылки на узлы камеры
 var camera_pivot: Node3D  # CameraPivot - отвечает за наклон
@@ -113,6 +114,8 @@ func _initialize_presets():
 
 # ===== ОБРАБОТКА ВВОДА =====
 func _unhandled_input(event):
+	if not input_enabled:
+		return
 	# Обработка перетаскивания камеры (правая кнопка мыши)
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
 		if event.pressed:
@@ -292,6 +295,9 @@ func set_follow_enabled(enabled: bool) -> void:
 	follow_enabled = enabled
 	if not follow_enabled:
 		is_centering_on_tile = false
+
+func set_input_enabled(enabled: bool) -> void:
+	input_enabled = enabled
 
 func apply_zoom_preset(level: int, interpolate: bool = true) -> void:
 	_set_zoom_level(level, interpolate)

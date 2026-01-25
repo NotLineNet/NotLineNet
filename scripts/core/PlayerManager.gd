@@ -130,6 +130,9 @@ func _highlight_active_portrait() -> void:
 		var target_scale := PORTRAIT_SCALE_ACTIVE if idx == active_index else PORTRAIT_SCALE_IDLE
 		_animate_portrait_scale(portrait, target_scale)
 
+func highlight_active_portrait() -> void:
+	_highlight_active_portrait()
+
 func _current_active_player_index() -> int:
 	var gm := _get_game_manager()
 	if not gm or not gm.active_player:
