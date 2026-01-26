@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3 uid="uid://d2tliqhe8tuwi"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_0k5mn"]
+size = Vector3(1, 1.8, 0.245)
+
+[sub_resource type="BoxMesh" id="BoxMesh_00kyd"]
+size = Vector3(1.5, 2, 0.1)
+
+[node name="LockedDoorWall" type="Node3D"]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.09, 0)
+mesh = SubResource("BoxMesh_0k5mn")
+skeleton = NodePath("")
+
+[node name="Container2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.25, 0, 0)
+mesh = SubResource("BoxMesh_00kyd")
+
+[node name="Container3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.25, 0, 0)
+mesh = SubResource("BoxMesh_00kyd")

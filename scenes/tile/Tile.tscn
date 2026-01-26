@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://34iqiybudqgv"]
+[gd_scene load_steps=7 format=3 uid="uid://34iqiybudqgv"]
 
 [ext_resource type="Script" uid="uid://bq4rut2su25fc" path="res://scripts/core/Tile.gd" id="1_el6ae"]
 
@@ -14,21 +14,6 @@ size = Vector3(1, 0.1, 1)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_el6ae"]
 size = Vector3(1, 0.2, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_el6ae"]
-size = Vector3(4, 2, 0.1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_rj82w"]
-size = Vector3(1, 1.8, 0.245)
-
-[sub_resource type="BoxMesh" id="BoxMesh_4wt3o"]
-size = Vector3(0.1, 2, 4)
-
-[sub_resource type="BoxMesh" id="BoxMesh_otkrf"]
-size = Vector3(0.1, 2, 4)
-
-[sub_resource type="BoxMesh" id="BoxMesh_d5wi3"]
-size = Vector3(4, 2, 0.1)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_rv6tc"]
 size = Vector2(4, 4)
@@ -50,37 +35,19 @@ shape = SubResource("BoxShape3D_el6ae")
 [node name="BaseRoom" type="Node3D" parent="."]
 transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, 0, 0, 0)
 
-[node name="RU" type="MeshInstance3D" parent="BaseRoom"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -2)
-mesh = SubResource("BoxMesh_el6ae")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="BaseRoom/RU"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.09, 0)
-mesh = SubResource("BoxMesh_rj82w")
-
-[node name="RD" type="MeshInstance3D" parent="BaseRoom"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1, 0)
-mesh = SubResource("BoxMesh_4wt3o")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="BaseRoom/RD"]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, -0.09, 0)
-mesh = SubResource("BoxMesh_rj82w")
-
-[node name="LU" type="MeshInstance3D" parent="BaseRoom"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 1, 0)
-mesh = SubResource("BoxMesh_otkrf")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="BaseRoom/LU"]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, -0.09, 0)
-mesh = SubResource("BoxMesh_rj82w")
-
-[node name="LD" type="MeshInstance3D" parent="BaseRoom"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 2)
-mesh = SubResource("BoxMesh_d5wi3")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="BaseRoom/LD"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.09, 0)
-mesh = SubResource("BoxMesh_rj82w")
-
 [node name="Floor" type="MeshInstance3D" parent="BaseRoom"]
 mesh = SubResource("PlaneMesh_rv6tc")
+
+[node name="WallsContainer" type="Node3D" parent="."]
+
+[node name="UPWall" type="Node3D" parent="WallsContainer"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -2)
+
+[node name="RightWall" type="Node3D" parent="WallsContainer"]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 2, 1, 0)
+
+[node name="DownWall" type="Node3D" parent="WallsContainer"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 2)
+
+[node name="LeftWall" type="Node3D" parent="WallsContainer"]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -2, 1, 0)

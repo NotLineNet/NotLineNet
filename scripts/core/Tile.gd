@@ -2,6 +2,30 @@ extends Node3D
 class_name Tile
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
 
+enum WallVisual {
+	BLOCKED,
+	DOOR,
+	LOCKED_DOOR,
+	OPENED
+}
+
+const WALL_SCENE_FOR_VISUAL := {
+	WallVisual.BLOCKED: preload("res://scenes/tile/walls/BlockedWall.tscn"),
+	WallVisual.DOOR: preload("res://scenes/tile/walls/DoorWall.tscn"),
+	WallVisual.LOCKED_DOOR: preload("res://scenes/tile/walls/LocedDoorWall.tscn"),
+	WallVisual.OPENED: preload("res://scenes/tile/walls/OpenedWall.tscn")
+}
+const WALL_DIRECTION_TO_NODE := {
+	Vector2i(0, -1): "UPWall",
+	Vector2i(0, 1): "DownWall",
+	Vector2i(-1, 0): "LeftWall",
+	Vector2i(1, 0): "RightWall"
+}
+const UNSET_WALL_VISUAL := -1
+
+@export var locked_wall_chance: float = 0.05
+@export var door_wall_chance: float = 0.15
+
 signal exit_clicked(tile: Tile, dir: Vector2i)
 signal tile_clicked(tile: Tile)
 
@@ -9,6 +33,8 @@ var grid_pos: Vector2i
 var exits: Array[Vector2i] = []
 var exit_markers: Dictionary = {}  # Хранит маркеры выходов по направлению
 var base_room: Node3D
+var wall_assignments: Dictionary = {}
+var walls_initialized := false
 
 const EXIT_MARKER_SIZE := GameConfig.EXIT_MARKER_SIZE
 const EXIT_OFFSET := GameConfig.EXIT_OFFSET
@@ -178,6 +204,75 @@ func _get_active_player() -> Player:
 		return gm.active_player
 	return null
 
+func _get_level_manager() -> LevelManager:
+	var tree := get_tree()
+	if not tree:
+		return null
+	return tree.get_first_node_in_group("level_manager") as LevelManager
+
+func _has_wall_visual(dir: Vector2i) -> bool:
+	return wall_assignments.has(dir)
+
+func _get_wall_visual(dir: Vector2i) -> int:
+	return wall_assignments.get(dir, UNSET_WALL_VISUAL) as int
+
+func _assign_wall_visual(dir: Vector2i, visual: int) -> void:
+	wall_assignments[dir] = visual
+
+func _determine_visual_for_exit() -> int:
+	var locked: float = clamp(locked_wall_chance, 0.0, 1.0)
+	var door: float = clamp(door_wall_chance, 0.0, max(0.0, 1.0 - locked))
+	var roll: float = randf()
+	if roll < locked:
+		return WallVisual.LOCKED_DOOR
+	if roll < locked + door:
+		return WallVisual.DOOR
+	return WallVisual.OPENED
+
+func _ensure_walls_created() -> void:
+	if walls_initialized:
+		return
+
+	var container := get_node_or_null("WallsContainer") as Node3D
+	if not container:
+		return
+
+	var level_manager := _get_level_manager()
+	for dir in WALL_DIRECTION_TO_NODE.keys():
+		var wall_name: String = WALL_DIRECTION_TO_NODE[dir]
+		var wall_holder := container.get_node_or_null(wall_name) as Node3D
+		if not wall_holder:
+			continue
+
+		for child in wall_holder.get_children():
+			child.queue_free()
+
+		var assigned_visual: int = _get_wall_visual(dir)
+		var visual := assigned_visual
+		if visual == UNSET_WALL_VISUAL:
+			var has_exit := exits.has(dir)
+			visual = _determine_visual_for_exit() if has_exit else WallVisual.BLOCKED
+			_assign_wall_visual(dir, visual)
+			if level_manager:
+				var neighbor_pos: Vector2i = grid_pos + dir
+				if level_manager.tiles.has(neighbor_pos):
+					var neighbor := level_manager.tiles[neighbor_pos] as Tile
+					neighbor._assign_wall_visual(-dir, visual)
+		else:
+			if level_manager:
+				var neighbor_pos: Vector2i = grid_pos + dir
+				if level_manager.tiles.has(neighbor_pos):
+					var neighbor := level_manager.tiles[neighbor_pos] as Tile
+					neighbor._assign_wall_visual(-dir, visual)
+
+		var scene: PackedScene = WALL_SCENE_FOR_VISUAL.get(visual, null) as PackedScene
+		if scene:
+			var wall_instance := scene.instantiate() as Node3D
+			if wall_instance:
+				wall_holder.add_child(wall_instance)
+
+	walls_initialized = true
+
 func hide_tile():
 	if base_room:
 		base_room.visible = false
@@ -188,6 +283,7 @@ func hide_tile():
 			shape.disabled = true
 
 func show_tile():
+	_ensure_walls_created()
 	if base_room:
 		base_room.visible = true
 	for marker in exit_markers.values():

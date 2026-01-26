@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://drw7mwgbxcpfk"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_iq1oa"]
+size = Vector3(4, 2, 0.1)
+
+[node name="BlockedWall" type="Node3D"]
+
+[node name="Container" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_iq1oa")
