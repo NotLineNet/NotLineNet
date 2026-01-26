@@ -624,6 +624,11 @@ func _on_exit_clicked(tile: Tile, dir: Vector2i):
 	if not active_player or active_player.action_points <= 0:
 		return
 	
+	# Если стена блокирована замком или дверью, не раскрываем тайл
+	var wall_visual := tile.wall_visual_for_direction(dir)
+	if wall_visual == Tile.WallVisual.LOCKED_DOOR or wall_visual == Tile.WallVisual.DOOR:
+		return
+
 	# Раскрываем следующий тайл в направлении клика
 	var current_pos := tile.grid_pos
 	var next_pos := current_pos + dir

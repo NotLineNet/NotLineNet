@@ -83,28 +83,40 @@ func _on_exit_clicked(tile: Tile, dir: Vector2i):
 	if not is_active:
 		return
 	
-	# Проверяем наличие очков действий
-	if action_points <= MIN_ACTION_POINTS:
+	if not level_manager:
 		return
-	
-	# Проверяем, что в этом направлении есть выход
-	if not tile.exits.has(dir):
+
+	var next_pos: Vector2i = tile.grid_pos + dir
+	if not level_manager.tiles.has(next_pos):
 		return
-	
-	# Находим следующий тайл
-	var next_pos := tile.grid_pos + dir
-	if not level_manager or not level_manager.tiles.has(next_pos):
-		return
-	
+
 	var next_tile: Tile = level_manager.tiles[next_pos] as Tile
 	if not next_tile:
 		return
-	
-	# Сохраняем текущий тайл как предыдущий
+
+	_attempt_move(dir, next_tile)
+
+func _attempt_move(dir: Vector2i, target_tile: Tile) -> void:
+	if not current_tile or not target_tile or is_moving:
+		return
+
+	if action_points <= MIN_ACTION_POINTS:
+		return
+
+	var has_exit: bool = current_tile.exits.has(dir)
+	if not has_exit:
+		return
+
+	var visual: int = current_tile.wall_visual_for_direction(dir)
+	if visual == Tile.WallVisual.DOOR:
+		spend_action_point()
+		current_tile.trigger_door_break(dir)
+		return
+	if visual == Tile.WallVisual.LOCKED_DOOR:
+		return
+
 	previous_tile = current_tile
-	
-	# Двигаемся на следующий тайл
-	move_to_tile(next_tile)
+	move_to_tile(target_tile)
 
 func move_to_tile(target_tile: Tile):
 	"""Двигает игрока на указанный тайл с анимацией"""
@@ -127,8 +139,8 @@ func move_to_tile(target_tile: Tile):
 	_disconnect_from_tile(current_tile)
 	
 	# Вычисляем целевую позицию
-	var target_position := target_tile.global_position + Vector3(0, PLAYER_SIZE / 2.0 + 0.1, 0)
-	var start_position := global_position
+	var target_position: Vector3 = target_tile.global_position + Vector3(0, PLAYER_SIZE / 2.0 + 0.1, 0)
+	var start_position: Vector3 = global_position
 	
 	# Создаем твин для анимации движения с изингом
 	var tween := create_tween()
@@ -172,21 +184,26 @@ func move_back():
 	if not can_move_back():
 		return
 	
-	var temp_tile := previous_tile
-	previous_tile = current_tile
-	move_to_tile(temp_tile)
+	var temp_tile: Tile = previous_tile
+	if not temp_tile:
+		return
+
+	var dir: Vector2i = temp_tile.grid_pos - current_tile.grid_pos
+	_attempt_move(dir, temp_tile)
 
 func add_action_point():
 	"""Добавляет одно очко действия (максимум MAX_ACTION_POINTS)"""
 	if action_points < MAX_ACTION_POINTS:
 		action_points += 1
 		action_points_changed.emit(action_points)
+		_refresh_exit_colors()
 
 func refill_action_points():
 	"""Восстанавливает очки действий до максимума"""
 	if action_points != MAX_ACTION_POINTS:
 		action_points = MAX_ACTION_POINTS
 		action_points_changed.emit(action_points)
+		_refresh_exit_colors()
 
 func reset_for_new_day():
 	"""Сбрасывает состояние на начало дня без изменения позиции"""
@@ -197,6 +214,11 @@ func spend_action_point():
 	if action_points > MIN_ACTION_POINTS:
 		action_points -= 1
 		action_points_changed.emit(action_points)
+		_refresh_exit_colors()
+
+func _refresh_exit_colors():
+	if current_tile:
+		current_tile._update_gate_colors(current_tile._get_current_gate_color())
 
 func _move_camera_to_tile(target_tile: Tile):
 	"""Перемещает камеру на позицию тайла с изингом и небольшим отставанием"""

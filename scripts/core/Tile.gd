@@ -22,6 +22,7 @@ const WALL_DIRECTION_TO_NODE := {
 	Vector2i(1, 0): "RightWall"
 }
 const UNSET_WALL_VISUAL := -1
+const DOOR_BREAK_DURATION := 0.5
 
 @export var locked_wall_chance: float = 0.05
 @export var door_wall_chance: float = 0.15
@@ -119,17 +120,16 @@ func redraw_exit_markers():
 		exit_markers[dir] = marker
 
 func _get_current_gate_color() -> Color:
-	# Если игрок не определен, ворота серые
 	var active_player := _get_active_player()
 	if not active_player:
 		return GATE_COLOR_INACTIVE
-		
-	# Проверяем позицию, так как ссылка на current_tile может быть еще не обновлена
-	var half_tile := GameConfig.TILE_SIZE * 0.5
-	var player_pos = Vector2i(round(active_player.global_position.x / half_tile), round(active_player.global_position.z / half_tile))
-	if player_pos == grid_pos:
+
+	if active_player.current_tile != self:
+		return GATE_COLOR_INACTIVE
+
+	if active_player.action_points > GameConfig.MIN_ACTION_POINTS:
 		return GATE_COLOR_ACTIVE
-		
+
 	return GATE_COLOR_INACTIVE
 
 func on_player_entered():
@@ -210,14 +210,36 @@ func _get_level_manager() -> LevelManager:
 		return null
 	return tree.get_first_node_in_group("level_manager") as LevelManager
 
-func _has_wall_visual(dir: Vector2i) -> bool:
-	return wall_assignments.has(dir)
+func wall_visual_for_direction(dir: Vector2i) -> int:
+	if not wall_assignments.has(dir):
+		return UNSET_WALL_VISUAL
+	var state: Dictionary = wall_assignments[dir] as Dictionary
+	if state.has("visual"):
+		return state["visual"] as int
+	return UNSET_WALL_VISUAL
 
-func _get_wall_visual(dir: Vector2i) -> int:
-	return wall_assignments.get(dir, UNSET_WALL_VISUAL) as int
+func wall_owner_for_direction(dir: Vector2i) -> Tile:
+	if not wall_assignments.has(dir):
+		return self
+	var state: Dictionary = wall_assignments[dir] as Dictionary
+	if state.has("owner"):
+		return state["owner"] as Tile
+	return self
 
-func _assign_wall_visual(dir: Vector2i, visual: int) -> void:
-	wall_assignments[dir] = visual
+func _assign_wall_visual(dir: Vector2i, visual: int, owner: Tile, propagate: bool = true) -> void:
+	wall_assignments[dir] = {"visual": visual, "owner": owner}
+	if propagate:
+		_propagate_to_neighbor(dir, visual, owner)
+
+func _propagate_to_neighbor(dir: Vector2i, visual: int, owner: Tile) -> void:
+	var level_manager := _get_level_manager()
+	if not level_manager:
+		return
+	var neighbor_pos: Vector2i = grid_pos + dir
+	if not level_manager.tiles.has(neighbor_pos):
+		return
+	var neighbor := level_manager.tiles[neighbor_pos] as Tile
+	neighbor._assign_wall_visual(-dir, visual, owner, false)
 
 func _determine_visual_for_exit() -> int:
 	var locked: float = clamp(locked_wall_chance, 0.0, 1.0)
@@ -229,48 +251,116 @@ func _determine_visual_for_exit() -> int:
 		return WallVisual.DOOR
 	return WallVisual.OPENED
 
-func _ensure_walls_created() -> void:
-	if walls_initialized:
-		return
+func _neighbor_has_visual(dir: Vector2i) -> bool:
+	var level_manager := _get_level_manager()
+	if not level_manager:
+		return false
+	var neighbor_pos: Vector2i = grid_pos + dir
+	if not level_manager.tiles.has(neighbor_pos):
+		return false
+	var neighbor := level_manager.tiles[neighbor_pos] as Tile
+	return neighbor and neighbor.walls_initialized
 
+func _refresh_wall_scene(dir: Vector2i, visual: int) -> void:
+	if wall_owner_for_direction(dir) != self:
+		return
 	var container := get_node_or_null("WallsContainer") as Node3D
 	if not container:
 		return
+	var wall_name: String = WALL_DIRECTION_TO_NODE.get(dir, "")
+	if wall_name == "":
+		return
+	var wall_holder := container.get_node_or_null(wall_name) as Node3D
+	if not wall_holder:
+		return
+	for child in wall_holder.get_children():
+		child.queue_free()
+	var scene: PackedScene = WALL_SCENE_FOR_VISUAL.get(visual, null) as PackedScene
+	if scene:
+		var wall_instance := scene.instantiate() as Node3D
+		if wall_instance:
+			wall_holder.add_child(wall_instance)
 
+func _apply_wall_visual(dir: Vector2i, visual: int) -> void:
+	_assign_wall_visual(dir, visual, self)
+	_refresh_wall_scene(dir, visual)
+
+func trigger_door_break(dir: Vector2i) -> void:
+	if wall_visual_for_direction(dir) != WallVisual.DOOR:
+		return
+
+	var owner := wall_owner_for_direction(dir)
+	if owner and owner != self:
+		owner.trigger_door_break(-dir)
+		return
+
+	if not owner:
+		owner = self
+	_assign_wall_visual(dir, WallVisual.OPENED, owner)
+
+	var container := get_node_or_null("WallsContainer") as Node3D
+	var wall_holder: Node3D = null
+	if container:
+		var wall_name: String = WALL_DIRECTION_TO_NODE.get(dir, "")
+		if wall_name != "":
+			wall_holder = container.get_node_or_null(wall_name) as Node3D
+	var door_node: Node3D = null
+	if wall_holder and wall_holder.get_child_count() > 0:
+		door_node = wall_holder.get_child(0) as Node3D
+	var animation_player: AnimationPlayer = null
+	if door_node:
+		animation_player = door_node.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if animation_player and animation_player.has_animation("Break_Door"):
+		animation_player.play("Break_Door")
+		_finalize_broken_door(dir)
+	else:
+		_refresh_wall_scene(dir, WallVisual.OPENED)
+		var level_manager := _get_level_manager()
+		if level_manager:
+			var neighbor_pos: Vector2i = grid_pos + dir
+			if level_manager.tiles.has(neighbor_pos):
+				var neighbor := level_manager.tiles[neighbor_pos] as Tile
+				neighbor._refresh_wall_scene(-dir, WallVisual.OPENED)
+
+func _finalize_broken_door(dir: Vector2i) -> void:
+	await get_tree().create_timer(DOOR_BREAK_DURATION).timeout
+	_refresh_wall_scene(dir, WallVisual.OPENED)
 	var level_manager := _get_level_manager()
+	if level_manager:
+		var neighbor_pos: Vector2i = grid_pos + dir
+		if level_manager.tiles.has(neighbor_pos):
+			var neighbor := level_manager.tiles[neighbor_pos] as Tile
+			neighbor._refresh_wall_scene(-dir, WallVisual.OPENED)
+
+func _ensure_walls_created() -> void:
+	if walls_initialized:
+		return
+	var container := get_node_or_null("WallsContainer") as Node3D
+	if not container:
+		return
 	for dir in WALL_DIRECTION_TO_NODE.keys():
-		var wall_name: String = WALL_DIRECTION_TO_NODE[dir]
-		var wall_holder := container.get_node_or_null(wall_name) as Node3D
-		if not wall_holder:
-			continue
-
-		for child in wall_holder.get_children():
-			child.queue_free()
-
-		var assigned_visual: int = _get_wall_visual(dir)
-		var visual := assigned_visual
+		var visual := wall_visual_for_direction(dir)
+		var owner := wall_owner_for_direction(dir)
 		if visual == UNSET_WALL_VISUAL:
 			var has_exit := exits.has(dir)
-			visual = _determine_visual_for_exit() if has_exit else WallVisual.BLOCKED
-			_assign_wall_visual(dir, visual)
-			if level_manager:
-				var neighbor_pos: Vector2i = grid_pos + dir
-				if level_manager.tiles.has(neighbor_pos):
-					var neighbor := level_manager.tiles[neighbor_pos] as Tile
-					neighbor._assign_wall_visual(-dir, visual)
+			if has_exit:
+				visual = _determine_visual_for_exit()
+			else:
+				visual = WallVisual.BLOCKED
+			var assigned_owner: Tile = self
+			if has_exit and _neighbor_has_visual(dir):
+				var level_manager := _get_level_manager()
+				if level_manager:
+					var neighbor_pos: Vector2i = grid_pos + dir
+					if level_manager.tiles.has(neighbor_pos):
+						assigned_owner = level_manager.tiles[neighbor_pos] as Tile
+			_assign_wall_visual(dir, visual, assigned_owner)
+			owner = assigned_owner
 		else:
-			if level_manager:
-				var neighbor_pos: Vector2i = grid_pos + dir
-				if level_manager.tiles.has(neighbor_pos):
-					var neighbor := level_manager.tiles[neighbor_pos] as Tile
-					neighbor._assign_wall_visual(-dir, visual)
-
-		var scene: PackedScene = WALL_SCENE_FOR_VISUAL.get(visual, null) as PackedScene
-		if scene:
-			var wall_instance := scene.instantiate() as Node3D
-			if wall_instance:
-				wall_holder.add_child(wall_instance)
-
+			if owner == self:
+				_propagate_to_neighbor(dir, visual, self)
+		if owner == self:
+			_refresh_wall_scene(dir, visual)
 	walls_initialized = true
 
 func hide_tile():
