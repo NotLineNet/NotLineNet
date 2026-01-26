@@ -2,6 +2,32 @@ extends Node3D
 class_name Tile
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
 
+enum RoomType {
+	EMPTY,
+	CHEST,
+	AMBUSH,
+	MONSTER
+}
+
+const ROOM_TYPE_WEIGHTS := [
+	{"type": RoomType.EMPTY, "weight": 0.8},
+	{"type": RoomType.CHEST, "weight": 0.1},
+	{"type": RoomType.AMBUSH, "weight": 0.05},
+	{"type": RoomType.MONSTER, "weight": 0.05}
+]
+
+const ROOM_SCENES := {
+	RoomType.CHEST: preload("res://scenes/tile/Ellements/Chest.tscn"),
+	RoomType.AMBUSH: preload("res://scenes/tile/Ellements/Ambush.tscn"),
+	RoomType.MONSTER: preload("res://scenes/monster/Monster.tscn")
+}
+
+var room_type: int = RoomType.EMPTY
+var room_assigned := false
+var room_content: Node3D
+var _chest_ui: Node3D
+var _chest_button_callable: Callable
+
 enum WallVisual {
 	BLOCKED,
 	DOOR,
@@ -36,6 +62,7 @@ var exit_markers: Dictionary = {}  # Хранит маркеры выходов 
 var base_room: Node3D
 var wall_assignments: Dictionary = {}
 var walls_initialized := false
+var occupying_monster: Node3D
 
 const EXIT_MARKER_SIZE := GameConfig.EXIT_MARKER_SIZE
 const EXIT_OFFSET := GameConfig.EXIT_OFFSET
@@ -65,6 +92,9 @@ func _ready():
 		var player_pos = Vector2i(round(active_player.global_position.x / half_tile), round(active_player.global_position.z / half_tile))
 		if player_pos == grid_pos:
 			on_player_entered()
+	if not _chest_button_callable:
+		_chest_button_callable = Callable(self, "_on_chest_button_pressed")
+	_ensure_room_content_parent()
 
 func _on_area_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int):
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -134,9 +164,11 @@ func _get_current_gate_color() -> Color:
 
 func on_player_entered():
 	_update_gate_colors(GATE_COLOR_ACTIVE)
+	_handle_room_player_entered()
 
 func on_player_exited():
 	_update_gate_colors(GATE_COLOR_INACTIVE)
+	_remove_chest_button()
 
 func _update_gate_colors(color: Color):
 	for marker in exit_markers.values():
@@ -364,6 +396,7 @@ func _ensure_walls_created() -> void:
 	walls_initialized = true
 
 func hide_tile():
+	_remove_chest_button()
 	if base_room:
 		base_room.visible = false
 	for marker in exit_markers.values():
@@ -381,3 +414,156 @@ func show_tile():
 		var shape := marker.get_node_or_null("CollisionShape3D") as CollisionShape3D
 		if shape:
 			shape.disabled = false
+	_ensure_room_generated()
+
+func _ensure_room_generated() -> void:
+	if room_assigned:
+		return
+	room_assigned = true
+	room_type = _pick_room_type()
+	_spawn_room_content()
+
+func force_empty_room() -> void:
+	room_assigned = true
+	room_type = RoomType.EMPTY
+	_clear_room_content()
+	_clear_monster()
+func _handle_room_player_entered() -> void:
+	var player := _get_active_player()
+	if not player:
+		return
+
+	match room_type:
+		RoomType.CHEST:
+			_show_chest_button()
+		RoomType.AMBUSH:
+			_trigger_ambush(player)
+		_:
+			pass
+
+func _show_chest_button() -> void:
+	if not room_content:
+		return
+
+	var ui := room_content.get_node_or_null("ChestUI")
+	if not ui:
+		return
+
+	if _chest_ui and _chest_ui != ui:
+		_remove_chest_button()
+
+	_chest_ui = ui
+
+	if ui.has_method("show_button"):
+		ui.call("show_button")
+
+	if _chest_button_callable and ui.has_signal("pressed"):
+		if not ui.is_connected("pressed", _chest_button_callable):
+			ui.connect("pressed", _chest_button_callable)
+
+func _remove_chest_button() -> void:
+	if not _chest_ui:
+		return
+
+	if _chest_ui.has_method("hide_button"):
+		_chest_ui.call("hide_button")
+
+	if _chest_button_callable and _chest_ui.has_signal("pressed") and _chest_ui.is_connected("pressed", _chest_button_callable):
+		_chest_ui.disconnect("pressed", _chest_button_callable)
+
+	_chest_ui = null
+
+func _on_chest_button_pressed() -> void:
+	var player := _get_active_player()
+	if player:
+		player.add_action_point()
+
+	_clear_room_content()
+	room_type = RoomType.EMPTY
+
+func _trigger_ambush(player: Player) -> void:
+	if not room_content:
+		return
+	player.play_ambush_damage_animation()
+	player.spend_action_point()
+	_clear_room_content()
+	room_type = RoomType.EMPTY
+
+func _clear_room_content() -> void:
+	_remove_chest_button()
+	if room_content and room_content.is_inside_tree():
+		room_content.queue_free()
+	room_content = null
+
+func _clear_monster() -> void:
+	if occupying_monster:
+		occupying_monster.despawn()
+	occupying_monster = null
+
+func _pick_room_type() -> int:
+	var roll := randf()
+	var cumulative := 0.0
+	for entry in ROOM_TYPE_WEIGHTS:
+		cumulative += entry["weight"]
+		if roll < cumulative:
+			return entry["type"]
+	return RoomType.EMPTY
+
+func _spawn_room_content() -> void:
+	if room_type == RoomType.MONSTER:
+		_spawn_monster()
+		return
+
+	if not ROOM_SCENES.has(room_type):
+		return
+	var scene := ROOM_SCENES[room_type] as PackedScene
+	if not scene:
+		return
+	var instance := scene.instantiate() as Node3D
+	if not instance:
+		return
+
+	add_child(instance)
+	room_content = instance
+	_ensure_room_content_parent()
+
+func _spawn_monster() -> void:
+	var scene := ROOM_SCENES.get(RoomType.MONSTER, null) as PackedScene
+	if not scene:
+		return
+	var instance := scene.instantiate() as Node3D
+	if not instance:
+		return
+
+	var monster_root := _get_monster_root()
+	if not monster_root:
+		instance.queue_free()
+		return
+
+	monster_root.add_child(instance)
+	if instance.has_method("initialize_on_tile"):
+		instance.call("initialize_on_tile", self)
+
+func _get_monster_root() -> Node3D:
+	var level_manager := _get_level_manager()
+	if not level_manager:
+		return null
+	var parent_node := level_manager.get_parent()
+	if not parent_node:
+		return null
+	return parent_node.get_node_or_null("MonsterRoot") as Node3D
+
+func _ensure_room_content_parent() -> void:
+	if not room_content:
+		return
+	var current_parent := room_content.get_parent()
+	if base_room:
+		if current_parent != base_room:
+			if current_parent:
+				current_parent.remove_child(room_content)
+			base_room.add_child(room_content)
+	else:
+		if current_parent != self:
+			if current_parent:
+				current_parent.remove_child(room_content)
+			add_child(room_content)

@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3 uid="uid://d2i4rxrri0l7x"]
+
+[ext_resource type="Texture2D" uid="uid://b2fnpynpvis30" path="res://image/Monster.png" id="1_de1oc"]
+[ext_resource type="Script" uid="uid://bwpmxo561r4at" path="res://scripts/core/Monster.gd" id="2_mrskr"]
+
+[node name="Monster" type="Node3D"]
+transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 0.99999994, 0, 0, 0)
+script = ExtResource("2_mrskr")
+
+[node name="Sprite3D" type="Sprite3D" parent="."]
+transform = Transform3D(0.9659258, 0.044943456, -0.25488698, 0, 0.9848077, 0.17364818, 0.25881904, -0.16773126, 0.9512512, 0.9, 0.6, 0)
+pixel_size = 0.003
+texture = ExtResource("1_de1oc")

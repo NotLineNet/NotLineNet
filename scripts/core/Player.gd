@@ -191,6 +191,11 @@ func move_back():
 	var dir: Vector2i = temp_tile.grid_pos - current_tile.grid_pos
 	_attempt_move(dir, temp_tile)
 
+func play_ambush_damage_animation():
+	var animation_player := get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if animation_player and animation_player.has_animation("AmbushDamage"):
+		animation_player.play("AmbushDamage")
+
 func add_action_point():
 	"""Добавляет одно очко действия (максимум MAX_ACTION_POINTS)"""
 	if action_points < MAX_ACTION_POINTS:

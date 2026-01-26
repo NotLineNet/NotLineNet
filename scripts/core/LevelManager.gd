@@ -29,6 +29,7 @@ var path_debug_enabled: bool = false
 var tracked_active_player: Player
 var _player_moved_callable: Callable
 var _active_player_changed_callable: Callable
+var monsters: Array[Node3D] = []
 
 func _ready():
 	randomize()
@@ -47,6 +48,7 @@ func create_grid():
 	red_tile_pos = Vector2i.ZERO
 	var red_tile := create_tile(red_tile_pos)
 	red_tile.set_color(Color.RED)
+	red_tile.force_empty_room()
 
 	var resolved_radius: int = max(1, circle_radius)
 	var main_circle: Dictionary = _build_circle_layer(red_tile_pos, resolved_radius)
@@ -63,6 +65,7 @@ func create_grid():
 		var green_tile: Tile = tiles.get(green_pos, null) as Tile
 		if green_tile:
 			green_tile.set_color(Color.GREEN)
+			green_tile.force_empty_room()
 		_build_circle_layer(green_pos, green_circle_radius)
 
 	var connection_map: Dictionary = _finalize_connections(green_exit_targets)
@@ -694,6 +697,24 @@ func _ensure_player_root() -> Node3D:
 		player_root.name = "PlayerRoot"
 		get_parent().add_child(player_root)
 	return player_root
+
+func register_monster(monster: Node3D) -> void:
+	if not monster:
+		return
+	if monsters.has(monster):
+		return
+	monsters.append(monster)
+
+func unregister_monster(monster: Node3D) -> void:
+	if not monster:
+		return
+	monsters.erase(monster)
+
+func move_monster(monster: Node3D, target_tile: Tile) -> void:
+	if not monster or not target_tile:
+		return
+	if monster.has_method("move_to_tile"):
+		monster.call("move_to_tile", target_tile)
 
 func _get_game_manager() -> GameManager:
 	var tree := get_tree()
