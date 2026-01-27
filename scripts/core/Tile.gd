@@ -1,6 +1,7 @@
 extends Node3D
 class_name Tile
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
+const MarkerUI = preload("res://scripts/ui/MarkerUI.gd")
 
 enum RoomType {
 	EMPTY,
@@ -25,7 +26,9 @@ const ROOM_SCENES := {
 var room_type: int = RoomType.EMPTY
 var room_assigned := false
 var room_content: Node3D
-var _chest_ui: Node3D
+var _chest_button: Control
+var _chest_marker: Node3D
+var _marker_ui: MarkerUI
 var _chest_button_callable: Callable
 
 enum WallVisual {
@@ -168,7 +171,6 @@ func on_player_entered():
 
 func on_player_exited():
 	_update_gate_colors(GATE_COLOR_INACTIVE)
-	_remove_chest_button()
 
 func _update_gate_colors(color: Color):
 	for marker in exit_markers.values():
@@ -441,37 +443,41 @@ func _handle_room_player_entered() -> void:
 		_:
 			pass
 
-func _show_chest_button() -> void:
+func _get_marker_ui() -> MarkerUI:
+	if _marker_ui and is_instance_valid(_marker_ui):
+		return _marker_ui
+	var tree := get_tree()
+	if not tree:
+		return null
+	_marker_ui = tree.get_first_node_in_group("marker_ui") as MarkerUI
+	return _marker_ui
+
+func _register_chest_button() -> void:
+	if room_type != RoomType.CHEST:
+		return
 	if not room_content:
 		return
-
-	var ui := room_content.get_node_or_null("ChestUI")
-	if not ui:
+	var marker := room_content.get_node_or_null("Marker3D") as Node3D
+	if not marker:
 		return
+	if _chest_marker == marker and _chest_button and is_instance_valid(_chest_button):
+		return
+	var marker_ui := _get_marker_ui()
+	if not marker_ui:
+		return
+	_chest_marker = marker
+	if not _chest_button_callable:
+		_chest_button_callable = Callable(self, "_on_chest_button_pressed")
+	_chest_button = marker_ui.register_chest_marker(marker, _chest_button_callable)
 
-	if _chest_ui and _chest_ui != ui:
-		_remove_chest_button()
-
-	_chest_ui = ui
-
-	if ui.has_method("show_button"):
-		ui.call("show_button")
-
-	if _chest_button_callable and ui.has_signal("pressed"):
-		if not ui.is_connected("pressed", _chest_button_callable):
-			ui.connect("pressed", _chest_button_callable)
+func _show_chest_button() -> void:
+	_register_chest_button()
 
 func _remove_chest_button() -> void:
-	if not _chest_ui:
-		return
-
-	if _chest_ui.has_method("hide_button"):
-		_chest_ui.call("hide_button")
-
-	if _chest_button_callable and _chest_ui.has_signal("pressed") and _chest_ui.is_connected("pressed", _chest_button_callable):
-		_chest_ui.disconnect("pressed", _chest_button_callable)
-
-	_chest_ui = null
+	if _marker_ui and is_instance_valid(_marker_ui) and _chest_marker:
+		_marker_ui.unregister_marker(_chest_marker)
+	_chest_button = null
+	_chest_marker = null
 
 func _on_chest_button_pressed() -> void:
 	var player := _get_active_player()
@@ -526,6 +532,8 @@ func _spawn_room_content() -> void:
 	add_child(instance)
 	room_content = instance
 	_ensure_room_content_parent()
+	if room_type == RoomType.CHEST:
+		_register_chest_button()
 
 func _spawn_monster() -> void:
 	var scene := ROOM_SCENES.get(RoomType.MONSTER, null) as PackedScene

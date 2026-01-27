@@ -1,14 +1,44 @@
-[gd_scene load_steps=2 format=3 uid="uid://f3bcqfmspddr"]
+[gd_scene format=3 uid="uid://f3bcqfmspddr"]
 
 [ext_resource type="Texture2D" uid="uid://cqcrud4sltcbd" path="res://image/Chest.png" id="1_ivbxj"]
 
-[node name="Chest" type="Node3D"]
+[sub_resource type="ViewportTexture" id="ViewportTexture_ivbxj"]
+viewport_path = NodePath("UI/SubViewport")
+
+[node name="Chest" type="Node3D" unique_id=2136542331]
 transform = Transform3D(0.70710677, 0, 0.70710677, 0, 1, 0, -0.70710677, 0, 0.70710677, 0, 0, 0)
 
-[node name="Sprite3D" type="Sprite3D" parent="."]
+[node name="Sprite3D" type="Sprite3D" parent="." unique_id=1190327265]
 transform = Transform3D(1, 0, 0, 0, 0.98480767, 0.17364818, 0, -0.17364818, 0.98480767, 0.7, 0.3, -0.18)
 pixel_size = 0.005
 texture = ExtResource("1_ivbxj")
 
-[node name="Marker3D" type="Marker3D" parent="Sprite3D"]
-transform = Transform3D(1, 0, 0, 0, 1.0000001, -1.4901161e-08, 0, 1.4901161e-08, 1.0000001, 0, 0.723, 0)
+[node name="UI" type="Sprite3D" parent="." unique_id=1325262386]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.72, 1.21, 0)
+visible = false
+billboard = 1
+texture = SubResource("ViewportTexture_ivbxj")
+
+[node name="SubViewport" type="SubViewport" parent="UI" unique_id=529741543]
+transparent_bg = true
+size = Vector2i(100, 100)
+
+[node name="Button" type="Button" parent="UI/SubViewport" unique_id=66448256]
+custom_minimum_size = Vector2(50, 50)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -50.0
+offset_top = -50.0
+offset_right = 29.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+text = "Открыть
+"
+
+[node name="Marker3D" type="Marker3D" parent="." unique_id=841313786]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.60588896, 0.9833025, -0.2573615)
