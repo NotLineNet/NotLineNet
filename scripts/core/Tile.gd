@@ -181,6 +181,7 @@ func on_player_entered():
 
 func on_player_exited():
 	_update_gate_colors(true)
+	_handle_room_player_exited()
 
 func _update_gate_colors(force_inactive: bool = false):
 	for dir in exit_markers.keys():
@@ -453,6 +454,10 @@ func _handle_room_player_entered() -> void:
 			_trigger_ambush(player)
 		_:
 			pass
+
+func _handle_room_player_exited() -> void:
+	if room_type == RoomType.CHEST:
+		_remove_chest_button()
 
 func _get_marker_ui() -> MarkerUI:
 	if _marker_ui and is_instance_valid(_marker_ui):
