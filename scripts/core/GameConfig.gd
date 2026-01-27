@@ -15,6 +15,7 @@ const MIN_ACTION_POINTS := 0
 
 # === Тайминги игры ===
 const TURN_SWITCH_DELAY := 2.0
+const NIGHT_DELAY := 2.0
 
 # === Визуальные параметры тайлов ===
 const EXIT_MARKER_SIZE := Vector3(0.3, 0.3, 0.3)

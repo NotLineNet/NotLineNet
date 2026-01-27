@@ -119,8 +119,6 @@ visible = false
 layout_mode = 2
 text = "Начать"
 
-[node name="PlayerUI" parent="UI" unique_id=1791129591 instance=ExtResource("6_ow5a4")]
-
 [node name="MainHUD" type="Control" parent="UI" unique_id=1120368981]
 layout_mode = 3
 anchors_preset = 10
@@ -143,6 +141,9 @@ anchor_left = 0.5
 anchor_right = 0.5
 grow_horizontal = 2
 alignment = 1
+
+[node name="PlayerUI" parent="UI" unique_id=1791129591 instance=ExtResource("6_ow5a4")]
+offset_top = -120.70502
 
 [node name="MarkerUI" type="Control" parent="UI" unique_id=743366972]
 layout_mode = 3

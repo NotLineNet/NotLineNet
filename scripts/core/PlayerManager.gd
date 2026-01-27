@@ -13,6 +13,8 @@ var _player_ui_avatar: Sprite2D
 var _player_ui_name_label: Label
 var _portrait_container: HBoxContainer
 var _portrait_nodes: Array[TextureRect] = []
+var _portrait_by_player: Dictionary = {}
+var _params_by_player: Dictionary = {}
 
 func _ready() -> void:
 	_players_view_params = _load_players_view_params()
@@ -47,10 +49,12 @@ func _apply_visuals_to_players() -> void:
 	var gm := _get_game_manager()
 	if not gm:
 		return
+	_params_by_player.clear()
 	for index in range(gm.players.size()):
 		var player := gm.players[index]
 		var params := _params_for_index(index)
 		if player and params:
+			_params_by_player[player] = params
 			_apply_body_texture(player, params)
 
 func _load_players_view_params() -> Array:
@@ -60,13 +64,29 @@ func _load_players_view_params() -> Array:
 	return []
 
 func _params_for_player(player) -> Dictionary:
+	if _params_by_player.has(player):
+		return _params_by_player[player]
 	var gm := _get_game_manager()
 	if not gm:
 		return {}
 	var index := gm.players.find(player)
 	if index == -1:
 		return {}
+	var params := _params_for_index(index)
+	if params:
+		_params_by_player[player] = params
+	return params
+
+func get_view_params_for_player(player) -> Dictionary:
+	return _params_for_player(player)
+
+func get_view_params_for_index(index: int) -> Dictionary:
 	return _params_for_index(index)
+
+func get_icon_texture_for_player(player) -> Texture2D:
+	var params := _params_for_player(player)
+	var icon_name := params.get("CharIconName", "") as String
+	return _load_image_texture(icon_name)
 
 func _params_for_index(index: int) -> Dictionary:
 	if index < 0 or index >= _players_view_params.size():
@@ -120,14 +140,16 @@ func _get_game_manager() -> GameManager:
 	return tree.get_first_node_in_group("game_manager") as GameManager
 
 func _highlight_active_portrait() -> void:
-	var active_index := _current_active_player_index()
-	if active_index == -1:
+	var gm := _get_game_manager()
+	if not gm or not gm.active_player:
 		return
-	for idx in range(_portrait_nodes.size()):
-		var portrait := _portrait_nodes[idx]
+	var active_portrait := _portrait_by_player.get(gm.active_player, null) as TextureRect
+	if not active_portrait:
+		return
+	for portrait in _portrait_nodes:
 		if not portrait:
 			continue
-		var target_scale := PORTRAIT_SCALE_ACTIVE if idx == active_index else PORTRAIT_SCALE_IDLE
+		var target_scale := PORTRAIT_SCALE_ACTIVE if portrait == active_portrait else PORTRAIT_SCALE_IDLE
 		_animate_portrait_scale(portrait, target_scale)
 
 func highlight_active_portrait() -> void:
@@ -152,9 +174,11 @@ func _populate_portraits() -> void:
 		_portrait_container = get_node_or_null(PORTRAIT_CONTAINER_PATH) as HBoxContainer
 	if not _portrait_container:
 		return
+	var gm := _get_game_manager()
 	for child in _portrait_container.get_children():
 		child.queue_free()
 	_portrait_nodes.clear()
+	_portrait_by_player.clear()
 	for params in _players_view_params:
 		if not params or not (params is Dictionary):
 			continue
@@ -171,3 +195,36 @@ func _populate_portraits() -> void:
 		portrait.scale = Vector2(PORTRAIT_SCALE_IDLE, PORTRAIT_SCALE_IDLE)
 		_portrait_container.add_child(portrait)
 		_portrait_nodes.append(portrait)
+	if gm:
+		var limit: int = min(_portrait_nodes.size(), gm.players.size())
+		for idx in range(limit):
+			var player: Player = gm.players[idx]
+			if player:
+				_portrait_by_player[player] = _portrait_nodes[idx]
+
+func reorder_portraits(players: Array) -> void:
+	if not _portrait_container or not is_instance_valid(_portrait_container):
+		_portrait_container = get_node_or_null(PORTRAIT_CONTAINER_PATH) as HBoxContainer
+	if not _portrait_container:
+		return
+	for child in _portrait_container.get_children():
+		child.queue_free()
+	_portrait_nodes.clear()
+	_portrait_by_player.clear()
+	for player in players:
+		if not player:
+			continue
+		var texture := get_icon_texture_for_player(player)
+		if not texture:
+			continue
+		var portrait := TextureRect.new()
+		portrait.texture = texture
+		portrait.stretch_mode = TextureRect.STRETCH_KEEP
+		portrait.custom_minimum_size = texture.get_size()
+		portrait.size_flags_horizontal = Control.SIZE_FILL | Control.SIZE_SHRINK_CENTER
+		portrait.pivot_offset = Vector2(texture.get_width() * 0.5, 0)
+		portrait.scale = Vector2(PORTRAIT_SCALE_IDLE, PORTRAIT_SCALE_IDLE)
+		_portrait_container.add_child(portrait)
+		_portrait_nodes.append(portrait)
+		_portrait_by_player[player] = portrait
+	_highlight_active_portrait()

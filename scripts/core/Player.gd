@@ -16,6 +16,7 @@ var is_moving := false
 var is_active := false
 var level_manager: LevelManager
 var action_points: int = GameConfig.MAX_ACTION_POINTS  # Количество очков действий
+var last_dice_roll: int = 0
 
 # Размер игрока - половина размера тайла (TILE_SIZE = 2.0, значит игрок = 1.0)
 const PLAYER_SIZE := 1.0
@@ -213,6 +214,9 @@ func refill_action_points():
 func reset_for_new_day():
 	"""Сбрасывает состояние на начало дня без изменения позиции"""
 	previous_tile = null
+
+func set_dice_roll(value: int) -> void:
+	last_dice_roll = value
 
 func spend_action_point():
 	"""Тратит одно очко действия (минимум MIN_ACTION_POINTS)"""

@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3 uid="uid://c73qdi2dyokjj"]
+[gd_scene format=3 uid="uid://c73qdi2dyokjj"]
 
 [ext_resource type="Script" uid="uid://bhdb51wd8kgtd" path="res://scripts/core/Player.gd" id="1_wr5hl"]
 [ext_resource type="Texture2D" uid="uid://dyxbo4o248att" path="res://image/hero_body_1.png" id="2_gfjak"]
@@ -64,19 +64,17 @@ _data = {
 &"RESET": SubResource("Animation_4kuee")
 }
 
-[node name="Player" type="Node3D"]
+[node name="Player" type="Node3D" unique_id=540299994]
 script = ExtResource("1_wr5hl")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
-libraries = {
-&"": SubResource("AnimationLibrary_524rm")
-}
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=706803156]
+libraries/ = SubResource("AnimationLibrary_524rm")
 
-[node name="BodyImage" type="Sprite3D" parent="."]
+[node name="BodyImage" type="Sprite3D" parent="." unique_id=1377662498]
 transform = Transform3D(0.3, 0, 0, 0, 0.29544234, 0.052094456, 0, -0.052094456, 0.29544234, -0.27, 0, -0.5)
 texture = ExtResource("2_gfjak")
 
-[node name="SpotLight3D" type="SpotLight3D" parent="."]
+[node name="SpotLight3D" type="SpotLight3D" parent="." unique_id=122955853]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 3.46, 0)
 spot_range = 12.067
 spot_attenuation = 0.07
