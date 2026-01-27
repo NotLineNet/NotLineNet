@@ -11,8 +11,8 @@ enum RoomType {
 }
 
 const ROOM_TYPE_WEIGHTS := [
-	{"type": RoomType.EMPTY, "weight": 0.8},
-	{"type": RoomType.CHEST, "weight": 0.1},
+	{"type": RoomType.EMPTY, "weight": 0.5},
+	{"type": RoomType.CHEST, "weight": 0.4},
 	{"type": RoomType.AMBUSH, "weight": 0.05},
 	{"type": RoomType.MONSTER, "weight": 0.05}
 ]
@@ -124,7 +124,7 @@ func redraw_exit_markers():
 		mesh.mesh = box
 
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = _get_current_gate_color()
+		mat.albedo_color = _get_gate_color_for_dir(dir)
 		mesh.material_override = mat
 
 		marker.add_child(mesh)
@@ -165,20 +165,31 @@ func _get_current_gate_color() -> Color:
 
 	return GATE_COLOR_INACTIVE
 
+func _get_gate_color_for_dir(dir: Vector2i, force_inactive: bool = false) -> Color:
+	if force_inactive:
+		return GATE_COLOR_INACTIVE
+	# Базовый цвет зависит от наличия ОД и позиции игрока
+	var base_color := _get_current_gate_color()
+	# Если в направлении запертая дверь, маркер всегда серый
+	if wall_visual_for_direction(dir) == WallVisual.LOCKED_DOOR:
+		return GATE_COLOR_INACTIVE
+	return base_color
+
 func on_player_entered():
-	_update_gate_colors(GATE_COLOR_ACTIVE)
+	_update_gate_colors()
 	_handle_room_player_entered()
 
 func on_player_exited():
-	_update_gate_colors(GATE_COLOR_INACTIVE)
+	_update_gate_colors(true)
 
-func _update_gate_colors(color: Color):
-	for marker in exit_markers.values():
+func _update_gate_colors(force_inactive: bool = false):
+	for dir in exit_markers.keys():
+		var marker: Area3D = exit_markers.get(dir) as Area3D
 		var mesh = marker.get_node_or_null("MeshInstance3D")
 		if mesh:
 			if not mesh.material_override:
 				mesh.material_override = StandardMaterial3D.new()
-			mesh.material_override.albedo_color = color
+			mesh.material_override.albedo_color = _get_gate_color_for_dir(dir, force_inactive)
 		else:
 			print("Tile %s: MeshInstance3D not found in marker %s" % [str(grid_pos), marker.name])
 

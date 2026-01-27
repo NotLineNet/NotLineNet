@@ -223,7 +223,7 @@ func spend_action_point():
 
 func _refresh_exit_colors():
 	if current_tile:
-		current_tile._update_gate_colors(current_tile._get_current_gate_color())
+		current_tile._update_gate_colors()
 
 func _move_camera_to_tile(target_tile: Tile):
 	"""Перемещает камеру на позицию тайла с изингом и небольшим отставанием"""
