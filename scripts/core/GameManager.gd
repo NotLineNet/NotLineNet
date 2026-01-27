@@ -4,6 +4,7 @@ class_name GameManager
 signal active_player_changed(new_player: Player)
 signal active_player_action_points_changed(new_value: int)
 signal new_player_started_moving(new_player: Player)
+signal player_turn_finished(player: Player)
 signal gameplay_started
 
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
@@ -205,6 +206,8 @@ func register_player(player: Player) -> void:
 func current_player_finished_moving() -> void:
 	if state != GameState.DAY or not active_player:
 		return
+	if active_player:
+		emit_signal("player_turn_finished", active_player)
 	state = GameState.SWITCHING_TURN
 	_hide_player_ui()
 	var timer := get_tree().create_timer(GameConfig.TURN_SWITCH_DELAY)
