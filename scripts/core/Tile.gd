@@ -11,10 +11,10 @@ enum RoomType {
 }
 
 const ROOM_TYPE_WEIGHTS := [
-	{"type": RoomType.EMPTY, "weight": 0.15},
-	{"type": RoomType.CHEST, "weight": 0.3},
-	{"type": RoomType.AMBUSH, "weight": 0.15},
-	{"type": RoomType.MONSTER, "weight": 0.4}
+	{"type": RoomType.EMPTY, "weight": 0},
+	{"type": RoomType.CHEST, "weight": 0},
+	{"type": RoomType.AMBUSH, "weight": 0},
+	{"type": RoomType.MONSTER, "weight": 1}
 ]
 
 const ROOM_SCENES := {
@@ -30,6 +30,7 @@ var _chest_button: Control
 var _chest_marker: Node3D
 var _marker_ui: MarkerUI
 var _chest_button_callable: Callable
+var has_opened := false
 
 enum WallVisual {
 	BLOCKED,
@@ -176,6 +177,8 @@ func _get_gate_color_for_dir(dir: Vector2i, force_inactive: bool = false) -> Col
 	return base_color
 
 func on_player_entered():
+	if not has_opened:
+		show_tile()
 	_update_gate_colors()
 	_handle_room_player_entered()
 
@@ -432,6 +435,8 @@ func show_tile():
 		if shape:
 			shape.disabled = false
 	_ensure_room_generated()
+	if not has_opened:
+		has_opened = true
 
 func _ensure_room_generated() -> void:
 	if room_assigned:

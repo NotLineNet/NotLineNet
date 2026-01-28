@@ -14,6 +14,7 @@ const Directions = preload("res://scripts/core/Directions.gd")
 @export var path_line_height: float = 0.12
 @export var loop_connection_chance: float = 0.28
 @export var max_deadend_ratio: float = 0.18
+@export var monster_night_stay_chance: float = 0
 
 const TILE_SIZE := GameConfig.TILE_SIZE
 const DIRECTIONS: Array[Vector2i] = Directions.ALL
@@ -715,6 +716,80 @@ func move_monster(monster: Node3D, target_tile: Tile) -> void:
 		return
 	if monster.has_method("move_to_tile"):
 		monster.call("move_to_tile", target_tile)
+
+func move_monsters_at_night() -> void:
+	var candidates := monsters.duplicate()
+	if candidates.size() == 0:
+		return
+	for monster in candidates:
+		if not monster or not monster.is_inside_tree():
+			continue
+		if not monster.has_method("move_to_tile"):
+			continue
+		if monster.is_dead or monster.is_moving:
+			continue
+		var destination := _pick_monster_destination(monster)
+		if not destination:
+			continue
+		await monster.move_to_tile(destination)
+
+func _pick_monster_destination(monster: Node3D) -> Tile:
+	if not monster:
+		return null
+	var current_tile: Tile = monster.current_tile as Tile
+	if not current_tile:
+		return null
+	var stay_chance: float = clamp(monster_night_stay_chance, 0.0, 1.0)
+	if randf() < stay_chance:
+		return null
+	var possible_tiles: Array[Tile] = _build_monster_candidates(current_tile)
+	if possible_tiles.size() == 0:
+		return null
+	possible_tiles.shuffle()
+	return possible_tiles[0]
+
+func _build_monster_candidates(origin: Tile) -> Array[Tile]:
+	var result: Array[Tile] = []
+	if not origin:
+		return result
+	for dir in origin.exits:
+		var neighbor_pos := origin.grid_pos + dir
+		if not tiles.has(neighbor_pos):
+			continue
+		var neighbor := tiles[neighbor_pos] as Tile
+		if not neighbor:
+			continue
+		if not neighbor.has_opened:
+			continue
+		if _is_monster_move_blocked(origin, neighbor, dir):
+			continue
+		result.append(neighbor)
+	return result
+
+func _is_monster_move_blocked(origin: Tile, neighbor: Tile, dir: Vector2i) -> bool:
+	if not origin or not neighbor:
+		return true
+	if neighbor.occupying_monster:
+		return true
+	if _is_protected_tile(neighbor):
+		return true
+	if not neighbor.exits.has(-dir):
+		return true
+	if _wall_visual_blocks(origin.wall_visual_for_direction(dir)):
+		return true
+	if _wall_visual_blocks(neighbor.wall_visual_for_direction(-dir)):
+		return true
+	return false
+
+func _wall_visual_blocks(visual: int) -> bool:
+	return visual == Tile.WallVisual.BLOCKED or visual == Tile.WallVisual.DOOR or visual == Tile.WallVisual.LOCKED_DOOR
+
+func _is_protected_tile(tile: Tile) -> bool:
+	if not tile:
+		return false
+	if tile.grid_pos == red_tile_pos:
+		return true
+	return green_tile_positions.has(tile.grid_pos)
 
 func _get_game_manager() -> GameManager:
 	var tree := get_tree()

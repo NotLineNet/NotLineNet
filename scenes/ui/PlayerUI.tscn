@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://cmwyo7p4h6jyf"]
+[gd_scene format=3 uid="uid://cmwyo7p4h6jyf"]
 
 [ext_resource type="Texture2D" uid="uid://dvkaj2qyjh086" path="res://image/hero_icon_1.png" id="1_lv2tr"]
 [ext_resource type="Script" uid="uid://6al0a5xxxx87" path="res://scripts/ui/PlayerUI.gd" id="1_v5h85"]
@@ -59,7 +59,7 @@ _data = {
 [sub_resource type="LabelSettings" id="LabelSettings_v5h85"]
 font_size = 50
 
-[node name="PlayerUI" type="Control"]
+[node name="PlayerUI" type="Control" unique_id=579863463]
 custom_minimum_size = Vector2(1000, 120.705)
 layout_mode = 3
 anchors_preset = 7
@@ -74,13 +74,11 @@ grow_horizontal = 2
 grow_vertical = 0
 script = ExtResource("1_v5h85")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1884604351]
 root_node = NodePath("../PanelRoot")
-libraries = {
-&"": SubResource("AnimationLibrary_32b3b")
-}
+libraries/ = SubResource("AnimationLibrary_32b3b")
 
-[node name="PanelRoot" type="Control" parent="."]
+[node name="PanelRoot" type="Control" parent="." unique_id=1422599016]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -89,7 +87,7 @@ offset_bottom = 0.009353638
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="BG" type="ColorRect" parent="PanelRoot"]
+[node name="BG" type="ColorRect" parent="PanelRoot" unique_id=239231917]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -98,11 +96,11 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 0.3019608)
 
-[node name="Avatar" type="Sprite2D" parent="PanelRoot"]
+[node name="Avatar" type="Sprite2D" parent="PanelRoot" unique_id=1240300210]
 texture = ExtResource("1_lv2tr")
 offset = Vector2(-59.15, 45.335)
 
-[node name="Name" type="Label" parent="PanelRoot"]
+[node name="Name" type="Label" parent="PanelRoot" unique_id=1137107460]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -120,7 +118,7 @@ label_settings = SubResource("LabelSettings_v5h85")
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="ButtonFinish" type="Button" parent="PanelRoot"]
+[node name="ButtonFinish" type="Button" parent="PanelRoot" unique_id=1379691654]
 modulate = Color(0.7670247, 2.5268644e-06, 9.62615e-07, 1)
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 1
@@ -137,7 +135,7 @@ grow_vertical = 2
 text = "Завершить
 ход"
 
-[node name="ActionPoints" type="HBoxContainer" parent="PanelRoot"]
+[node name="ActionPoints" type="HBoxContainer" parent="PanelRoot" unique_id=448393051]
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 1
 anchors_preset = 10
@@ -145,11 +143,11 @@ anchor_right = 1.0
 grow_horizontal = 2
 alignment = 2
 
-[node name="AP" type="Control" parent="PanelRoot/ActionPoints"]
+[node name="AP" type="Control" parent="PanelRoot/ActionPoints" unique_id=1590882079]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ColorRect" type="ColorRect" parent="PanelRoot/ActionPoints/AP"]
+[node name="ColorRect" type="ColorRect" parent="PanelRoot/ActionPoints/AP" unique_id=780093146]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -158,11 +156,11 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.13652208, 0.99815196, 0.9999998, 1)
 
-[node name="AP2" type="Control" parent="PanelRoot/ActionPoints"]
+[node name="AP2" type="Control" parent="PanelRoot/ActionPoints" unique_id=1636520883]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ColorRect" type="ColorRect" parent="PanelRoot/ActionPoints/AP2"]
+[node name="ColorRect" type="ColorRect" parent="PanelRoot/ActionPoints/AP2" unique_id=1344690974]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -171,11 +169,11 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.13725491, 1, 1, 1)
 
-[node name="AP3" type="Control" parent="PanelRoot/ActionPoints"]
+[node name="AP3" type="Control" parent="PanelRoot/ActionPoints" unique_id=480607720]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ColorRect" type="ColorRect" parent="PanelRoot/ActionPoints/AP3"]
+[node name="ColorRect" type="ColorRect" parent="PanelRoot/ActionPoints/AP3" unique_id=938700566]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0

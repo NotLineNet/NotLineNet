@@ -28,6 +28,7 @@ var _intro_started := false
 var _intro_completed := false
 var state: GameState = GameState.INIT
 var _dice_ui_instance
+var _pending_turn_start_player: Player = null
 
 @onready var player_ui := get_node_or_null("../UI/PlayerUI")
 @onready var hud_ui := get_node_or_null("../UI/HUD(cheats)")
@@ -227,9 +228,7 @@ func _move_to_next_player() -> bool:
 	if next_index >= players.size():
 		return false
 	set_active_player(players[next_index])
-	await _focus_camera_on_active_player()
-	await _prepare_active_player_for_turn(active_player)
-	emit_signal("new_player_started_moving", active_player)
+	await _start_turn_for_active_player()
 	return true
 
 func all_players_finished_moving() -> void:
@@ -310,9 +309,20 @@ func _hide_player_ui() -> void:
 	if player_ui:
 		player_ui.hide_player_ui()
 
-func _prepare_active_player_for_turn(player: Player) -> void:
-	if not player:
+# Готовит начало хода: камера -> проверка боя -> показ UI -> сигнал
+func _start_turn_for_active_player() -> void:
+	if not active_player:
 		return
+	_hide_player_ui()
+	await _focus_camera_on_active_player()
+	var ready := await _prepare_active_player_for_turn(active_player)
+	if ready:
+		emit_signal("new_player_started_moving", active_player)
+
+func _prepare_active_player_for_turn(player: Player) -> bool:
+	if not player:
+		return false
+	_hide_player_ui()
 	if player.is_dead:
 		_hide_player_ui()
 		var previous_input_enabled := true
@@ -327,9 +337,28 @@ func _prepare_active_player_for_turn(player: Player) -> void:
 			player.mark_alive()
 		if camera_root:
 			camera_root.set_input_enabled(previous_input_enabled)
+		if await _start_pending_monster_encounter(player):
+			return false
 		_show_player_ui()
-		return
+		return true
+	if await _start_pending_monster_encounter(player):
+		return false
 	_show_player_ui()
+	return true
+
+func _start_pending_monster_encounter(player: Player) -> bool:
+	if not player or not player.current_tile:
+		return false
+	var monster := player.current_tile.occupying_monster
+	if not monster or not monster.is_inside_tree():
+		return false
+	if monster.is_dead:
+		return false
+	if state == GameState.BATTLE:
+		return false
+	_pending_turn_start_player = player
+	await start_monster_battle(player, monster)
+	return true
 
 func _update_day_label() -> void:
 	if not hud_ui:
@@ -402,7 +431,7 @@ func start_monster_battle(player: Player, monster: Monster) -> void:
 		return
 	if state == GameState.BATTLE:
 		return
-	if state != GameState.DAY:
+	if state != GameState.DAY and state != GameState.SWITCHING_TURN:
 		return
 	_log_state("бой")
 	state = GameState.BATTLE
@@ -513,8 +542,13 @@ func _finish_battle_and_advance_turn(player_won: bool) -> void:
 		camera_root.set_input_enabled(true)
 	state = GameState.DAY
 	if player_won:
+		if _pending_turn_start_player:
+			await _focus_camera_on_active_player()
+			emit_signal("new_player_started_moving", _pending_turn_start_player)
+		_pending_turn_start_player = null
 		_show_player_ui()
 		return
+	_pending_turn_start_player = null
 	await current_player_finished_moving()
 
 func _build_lottery_player_data() -> Array:
@@ -627,10 +661,8 @@ func _start_day_cycle(increment_day: bool) -> void:
 	_clear_active_player()
 	if players.size() > 0:
 		set_active_player(players[0])
-		await _focus_camera_on_active_player()
 		_show_core_ui()
-		await _prepare_active_player_for_turn(active_player)
-		emit_signal("new_player_started_moving", active_player)
+		await _start_turn_for_active_player()
 
 func _start_night_cycle() -> void:
 	state = GameState.NIGHT
@@ -638,6 +670,8 @@ func _start_night_cycle() -> void:
 	_hide_player_ui()
 	_clear_active_player()
 	await _focus_camera_on_red_tile()
+	if level_manager:
+		await level_manager.move_monsters_at_night()
 	if camera_root:
 		camera_root.set_follow_enabled(false)
 		camera_root.set_input_enabled(false)
