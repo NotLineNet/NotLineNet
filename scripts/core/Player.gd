@@ -20,6 +20,7 @@ var action_points: int = GameConfig.MAX_ACTION_POINTS  # Количество о
 var last_dice_roll: int = 0
 var is_dead := false
 var pending_respawn := false
+var _default_body_position: Vector3 = Vector3.ZERO
 
 # Размер игрока - половина размера тайла (TILE_SIZE = 2.0, значит игрок = 1.0)
 const PLAYER_SIZE := 1.0
@@ -27,6 +28,7 @@ const PLAYER_SIZE := 1.0
 func _ready():
 	# Визуал берётся из сцены Player (Sprite3D). Если сцены нет — создаём сферу как запасной вариант
 	_create_player_visual()
+	_store_default_body_position()
 	
 	# LevelManager будет установлен через initialize_on_tile()
 
@@ -37,6 +39,16 @@ func _create_player_visual():
 	for child in get_children():
 		if child is Sprite3D:
 			return
+
+func _store_default_body_position() -> void:
+	var body_image := get_node_or_null("BodyImage") as Sprite3D
+	if body_image:
+		_default_body_position = body_image.position
+
+func _restore_body_image_position() -> void:
+	var body_image := get_node_or_null("BodyImage") as Sprite3D
+	if body_image:
+		body_image.position = _default_body_position
 
 func set_active(active: bool) -> void:
 	if is_active == active:
@@ -53,7 +65,7 @@ func initialize_on_tile(tile: Tile):
 	previous_tile = null
 	if not start_tile:
 		start_tile = tile
-	global_position = tile.global_position + Vector3(0, PLAYER_SIZE / 2.0 + 0.1, 0)
+	global_position = tile.global_position
 	
 	# Подключаемся к сигналам тайла
 	_connect_to_tile(tile)
@@ -145,7 +157,7 @@ func move_to_tile(target_tile: Tile):
 	_disconnect_from_tile(current_tile)
 	
 	# Вычисляем целевую позицию
-	var target_position: Vector3 = target_tile.global_position + Vector3(0, PLAYER_SIZE / 2.0 + 0.1, 0)
+	var target_position: Vector3 = target_tile.global_position
 	var start_position: Vector3 = global_position
 	
 	# Создаем твин для анимации движения с изингом
@@ -245,6 +257,7 @@ func respawn_to_start_tile() -> void:
 
 func mark_alive() -> void:
 	is_dead = false
+	_restore_body_image_position()
 
 func _teleport_to_tile(target_tile: Tile) -> void:
 	if not target_tile:
@@ -255,10 +268,11 @@ func _teleport_to_tile(target_tile: Tile) -> void:
 		current_tile.on_player_exited()
 	current_tile = target_tile
 	previous_tile = null
-	global_position = target_tile.global_position + Vector3(0, PLAYER_SIZE / 2.0 + 0.1, 0)
+	global_position = target_tile.global_position
 	_connect_to_tile(current_tile)
 	current_tile.on_player_entered()
 	_move_camera_to_tile_immediate(current_tile)
+	_restore_body_image_position()
 
 func _move_camera_to_tile(target_tile: Tile):
 	"""Перемещает камеру на позицию тайла с изингом и небольшим отставанием"""
