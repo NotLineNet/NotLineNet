@@ -1,7 +1,7 @@
 extends Control
 class_name PlayerDicier
 
-var player: Player
+var player
 var roll_value: int = 0
 const IMAGE_DIR := "res://image/"
 var _pending_icon_texture: Texture2D

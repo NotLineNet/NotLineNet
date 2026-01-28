@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://4pemhf4pqpb5" path="res://scripts/core/CameraDrag.gd" id="1_hyk8p"]
 [ext_resource type="Script" uid="uid://dd2pm03574y0b" path="res://scripts/core/LevelManager.gd" id="1_iuonh"]
 [ext_resource type="Script" uid="uid://gnx1cksn1aji" path="res://scripts/core/PlayerManager.gd" id="1_pmy5j"]
+[ext_resource type="Script" path="res://scripts/core/MonsterManager.gd" id="1_mnstr"]
 [ext_resource type="PackedScene" uid="uid://34iqiybudqgv" path="res://scenes/tile/Tile.tscn" id="2_k2fmo"]
 [ext_resource type="PackedScene" uid="uid://c73qdi2dyokjj" path="res://scenes/player/Player.tscn" id="3_6q06x"]
 [ext_resource type="Script" uid="uid://bd2sxyxkbsxw5" path="res://scripts/ui/UI.gd" id="4_l3cfh"]
@@ -39,6 +40,20 @@ metadata/PlayersViewParams = [{
 }]
 
 [node name="MonsterManager" type="Node3D" parent="." unique_id=991149028]
+script = ExtResource("1_mnstr")
+metadata/MonstersViewParams = [{
+"MonsterBodyName": "monster_body_1",
+"MonsterIconName": "monster_icon_1",
+"MonsterName": "МОснтр"
+}, {
+"MonsterBodyName": "monster_body_2",
+"MonsterIconName": "monster_icon_2",
+"MonsterName": "монстр21"
+}, {
+"MonsterBodyName": "monster_body_3",
+"MonsterIconName": "monster_icon_3",
+"MonsterName": "Монстр100"
+}]
 
 [node name="LevelRoot" type="Node3D" parent="." unique_id=1062371993]
 

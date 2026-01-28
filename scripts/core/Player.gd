@@ -12,11 +12,14 @@ const MIN_ACTION_POINTS := GameConfig.MIN_ACTION_POINTS
 
 var current_tile: Tile
 var previous_tile: Tile  # Для возврата на предыдущий тайл
+var start_tile: Tile  # Стартовый тайл для возврата после смерти
 var is_moving := false
 var is_active := false
 var level_manager: LevelManager
 var action_points: int = GameConfig.MAX_ACTION_POINTS  # Количество очков действий
 var last_dice_roll: int = 0
+var is_dead := false
+var pending_respawn := false
 
 # Размер игрока - половина размера тайла (TILE_SIZE = 2.0, значит игрок = 1.0)
 const PLAYER_SIZE := 1.0
@@ -48,6 +51,8 @@ func initialize_on_tile(tile: Tile):
 	"""Размещает игрока на указанном тайле (стартовый зеленый тайл)"""
 	current_tile = tile
 	previous_tile = null
+	if not start_tile:
+		start_tile = tile
 	global_position = tile.global_position + Vector3(0, PLAYER_SIZE / 2.0 + 0.1, 0)
 	
 	# Подключаемся к сигналам тайла
@@ -218,6 +223,10 @@ func reset_for_new_day():
 func set_dice_roll(value: int) -> void:
 	last_dice_roll = value
 
+func register_death() -> void:
+	is_dead = true
+	pending_respawn = true
+
 func spend_action_point():
 	"""Тратит одно очко действия (минимум MIN_ACTION_POINTS)"""
 	if action_points > MIN_ACTION_POINTS:
@@ -228,6 +237,28 @@ func spend_action_point():
 func _refresh_exit_colors():
 	if current_tile:
 		current_tile._update_gate_colors()
+
+func respawn_to_start_tile() -> void:
+	if not start_tile:
+		return
+	_teleport_to_tile(start_tile)
+
+func mark_alive() -> void:
+	is_dead = false
+
+func _teleport_to_tile(target_tile: Tile) -> void:
+	if not target_tile:
+		return
+	is_moving = false
+	if current_tile:
+		_disconnect_from_tile(current_tile)
+		current_tile.on_player_exited()
+	current_tile = target_tile
+	previous_tile = null
+	global_position = target_tile.global_position + Vector3(0, PLAYER_SIZE / 2.0 + 0.1, 0)
+	_connect_to_tile(current_tile)
+	current_tile.on_player_entered()
+	_move_camera_to_tile_immediate(current_tile)
 
 func _move_camera_to_tile(target_tile: Tile):
 	"""Перемещает камеру на позицию тайла с изингом и небольшим отставанием"""

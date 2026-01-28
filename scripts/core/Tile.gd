@@ -11,10 +11,10 @@ enum RoomType {
 }
 
 const ROOM_TYPE_WEIGHTS := [
-	{"type": RoomType.EMPTY, "weight": 0.5},
-	{"type": RoomType.CHEST, "weight": 0.4},
+	{"type": RoomType.EMPTY, "weight": 0.4},
+	{"type": RoomType.CHEST, "weight": 0.05},
 	{"type": RoomType.AMBUSH, "weight": 0.05},
-	{"type": RoomType.MONSTER, "weight": 0.05}
+	{"type": RoomType.MONSTER, "weight": 0.5}
 ]
 
 const ROOM_SCENES := {
@@ -234,6 +234,9 @@ func _can_interact_with_exits() -> bool:
 	var active_player := _get_active_player()
 	if not active_player:
 		return false
+	var gm := _get_game_manager()
+	if gm and gm.state != gm.GameState.DAY:
+		return false
 
 	# Проверяем, что игрок на этом тайле и не движется
 	return active_player.current_tile == self and not active_player.is_moving
@@ -445,6 +448,12 @@ func force_empty_room() -> void:
 func _handle_room_player_entered() -> void:
 	var player := _get_active_player()
 	if not player:
+		return
+
+	if occupying_monster:
+		var gm := _get_game_manager()
+		if gm and gm.has_method("start_monster_battle"):
+			gm.start_monster_battle(player, occupying_monster)
 		return
 
 	match room_type:

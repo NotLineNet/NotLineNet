@@ -10,7 +10,8 @@ signal gameplay_started
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
 const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 const DiceGameUI = preload("res://scripts/ui/DiceGameUI.gd")
-enum GameState { INIT, INTRO, DRAW_LOTS, DAY, SWITCHING_TURN, NIGHT, WAITING_NEW_DAY }
+const MonsterManager = preload("res://scripts/core/MonsterManager.gd")
+enum GameState { INIT, INTRO, DRAW_LOTS, DAY, BATTLE, SWITCHING_TURN, NIGHT, WAITING_NEW_DAY }
 const INTRO_SCENE_PATH := "res://scenes/ui/IntroCutScene.tscn"
 const DICE_GAME_UI_SCENE_PATH := "res://scenes/ui/DiceGameUI.tscn"
 
@@ -34,6 +35,7 @@ var _dice_ui_instance
 @onready var main_hud: Node = get_node_or_null("../UI/MainHUD")
 @onready var level_manager: LevelManager = get_node_or_null("../LevelManager") as LevelManager
 @onready var player_manager: PlayerManager = get_node_or_null("../PlayerManager") as PlayerManager
+@onready var monster_manager: MonsterManager = get_node_or_null("../MonsterManager") as MonsterManager
 @onready var camera_root: CameraDrag = get_node_or_null("../CameraRoot") as CameraDrag
 @onready var camera_pivot: Node3D = camera_root.get_node_or_null("CameraPivot") if camera_root else null
 @onready var main_camera: Camera3D = camera_pivot.get_node_or_null("Camera3D") if camera_pivot else null
@@ -226,7 +228,7 @@ func _move_to_next_player() -> bool:
 		return false
 	set_active_player(players[next_index])
 	await _focus_camera_on_active_player()
-	_show_player_ui()
+	await _prepare_active_player_for_turn(active_player)
 	emit_signal("new_player_started_moving", active_player)
 	return true
 
@@ -287,6 +289,14 @@ func _refill_player_action_points() -> void:
 			player.reset_for_new_day()
 		player.refill_action_points()
 
+func _revive_dead_players_for_new_day() -> void:
+	for player in players:
+		if not player:
+			continue
+		if player.pending_respawn:
+			player.respawn_to_start_tile()
+			player.pending_respawn = false
+
 func _show_player_ui() -> void:
 	if not player_ui:
 		player_ui = get_node_or_null("../UI/PlayerUI")
@@ -299,6 +309,27 @@ func _hide_player_ui() -> void:
 		player_ui = get_node_or_null("../UI/PlayerUI")
 	if player_ui:
 		player_ui.hide_player_ui()
+
+func _prepare_active_player_for_turn(player: Player) -> void:
+	if not player:
+		return
+	if player.is_dead:
+		_hide_player_ui()
+		var previous_input_enabled := true
+		if camera_root:
+			previous_input_enabled = camera_root.input_enabled
+			camera_root.set_input_enabled(false)
+		var animation_player := player.get_node_or_null("AnimationPlayer") as AnimationPlayer
+		if animation_player and animation_player.has_animation("Alive"):
+			animation_player.play("Alive")
+			await animation_player.animation_finished
+		if player.has_method("mark_alive"):
+			player.mark_alive()
+		if camera_root:
+			camera_root.set_input_enabled(previous_input_enabled)
+		_show_player_ui()
+		return
+	_show_player_ui()
 
 func _update_day_label() -> void:
 	if not hud_ui:
@@ -366,6 +397,126 @@ func _run_dice_lottery() -> Array:
 		return _generate_rolls_from_data(players_data)
 	return results
 
+func start_monster_battle(player: Player, monster: Monster) -> void:
+	if not player or not monster:
+		return
+	if state == GameState.BATTLE:
+		return
+	if state != GameState.DAY:
+		return
+	_log_state("бой")
+	state = GameState.BATTLE
+	_hide_player_ui()
+	_ensure_camera_nodes()
+	if camera_root:
+		camera_root.set_input_enabled(false)
+	var timer := get_tree().create_timer(1.0)
+	await timer.timeout
+	var results := await _run_monster_battle(player, monster)
+	var player_won := await _process_battle_outcome(results, player, monster)
+	await _finish_battle_and_advance_turn(player_won)
+
+func _run_monster_battle(player: Player, monster: Monster) -> Array:
+	var participants_data: Array = []
+	participants_data.append(_build_battle_participant_data(player))
+	participants_data.append(_build_battle_participant_data(monster))
+	if not dice_game_ui_scene:
+		return _generate_rolls_from_data(participants_data)
+	var ui_instance := dice_game_ui_scene.instantiate()
+	if not ui_instance:
+		return _generate_rolls_from_data(participants_data)
+	_dice_ui_instance = ui_instance
+	var parent_node: Node = ui_layer if ui_layer else self
+	parent_node.add_child(ui_instance)
+	var results: Array = []
+	if ui_instance.has_method("run_battle"):
+		results = await ui_instance.run_battle(participants_data)
+	else:
+		results = _generate_rolls_from_data(participants_data)
+	_dice_ui_instance = null
+	if results.size() == 0:
+		return _generate_rolls_from_data(participants_data)
+	return results
+
+func _build_battle_participant_data(participant) -> Dictionary:
+	var icon_texture: Texture2D = null
+	var icon_name: String = ""
+	if participant is Player:
+		var view_params: Dictionary = {}
+		if player_manager:
+			view_params = player_manager.get_view_params_for_player(participant)
+			icon_texture = player_manager.get_icon_texture_for_player(participant)
+		icon_name = view_params.get("CharIconName", "") as String
+		return {
+			"player": participant,
+			"icon_texture": icon_texture,
+			"icon_name": icon_name
+		}
+	if participant is Monster:
+		var params: Dictionary = monster_manager.get_default_view_params() if monster_manager else {}
+		icon_name = params.get("MonsterIconName", "") as String
+		if monster_manager:
+			icon_texture = monster_manager.get_icon_texture_for_monster(participant)
+		if not icon_texture and icon_name != "":
+			var loaded := load("res://image/%s.png" % icon_name)
+			if loaded is Texture2D:
+				icon_texture = loaded
+		return {
+			"player": participant,
+			"icon_texture": icon_texture,
+			"icon_name": icon_name
+		}
+	return {"player": participant}
+
+func _process_battle_outcome(results: Array, player: Player, monster: Monster) -> bool:
+	var player_roll := _extract_roll_for_participant(results, player)
+	var monster_roll := _extract_roll_for_participant(results, monster)
+	var player_won := player_roll >= monster_roll
+	if player_won:
+		await _handle_monster_defeat(monster)
+	else:
+		await _handle_player_defeat(player)
+	return player_won
+
+func _extract_roll_for_participant(results: Array, target) -> int:
+	for entry in results:
+		if not (entry is Dictionary):
+			continue
+		if entry.get("player") == target:
+			return int(entry.get("roll", 0))
+	return 0
+
+func _handle_monster_defeat(monster: Monster) -> void:
+	if not monster:
+		return
+	if monster.has_method("register_death"):
+		monster.register_death()
+	var animation_player := monster.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if animation_player and animation_player.has_animation("Death"):
+		animation_player.play("Death")
+		await animation_player.animation_finished
+	monster.despawn()
+
+func _handle_player_defeat(player: Player) -> void:
+	if not player:
+		return
+	if player.has_method("register_death"):
+		player.register_death()
+	var animation_player := player.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if animation_player and animation_player.has_animation("Death"):
+		animation_player.play("Death")
+		await animation_player.animation_finished
+
+func _finish_battle_and_advance_turn(player_won: bool) -> void:
+	_ensure_camera_nodes()
+	if camera_root:
+		camera_root.set_input_enabled(true)
+	state = GameState.DAY
+	if player_won:
+		_show_player_ui()
+		return
+	await current_player_finished_moving()
+
 func _build_lottery_player_data() -> Array:
 	var data: Array = []
 	for i in range(players.size()):
@@ -410,12 +561,12 @@ func _generate_rolls_from_data(players_data: Array) -> Array:
 	for entry in players_data:
 		if not (entry is Dictionary):
 			continue
-		var player := entry.get("player") as Player
-		if not player:
+		var participant = entry.get("player")
+		if not participant:
 			continue
 		var roll_value := randi_range(1, 6)
 		results.append({
-			"player": player,
+			"player": participant,
 			"roll": roll_value
 		})
 	return results
@@ -467,6 +618,7 @@ func _start_day_cycle(increment_day: bool) -> void:
 		current_game_day += 1
 	_update_day_label()
 	_refill_player_action_points()
+	_revive_dead_players_for_new_day()
 	_ensure_camera_nodes()
 	if camera_root:
 		camera_root.set_follow_enabled(true)
@@ -476,7 +628,8 @@ func _start_day_cycle(increment_day: bool) -> void:
 	if players.size() > 0:
 		set_active_player(players[0])
 		await _focus_camera_on_active_player()
-		_show_game_ui()
+		_show_core_ui()
+		await _prepare_active_player_for_turn(active_player)
 		emit_signal("new_player_started_moving", active_player)
 
 func _start_night_cycle() -> void:

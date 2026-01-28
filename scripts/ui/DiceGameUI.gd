@@ -39,6 +39,30 @@ func run_lottery(players_data: Array) -> Array:
 	queue_free()
 	return results
 
+func run_battle(players_data: Array) -> Array:
+	_clear_dicier_nodes()
+	_spawn_dicier_nodes(players_data)
+	_hide_next_button()
+	if fade:
+		var color := fade.color
+		color.a = 0.0
+		fade.color = color
+
+	if animation_player:
+		await _play_animation_safe("UI_Show")
+
+	var results := await _roll_all_dicers()
+	lottery_finished.emit(results)
+
+	await _wait_next_click()
+
+	if animation_player:
+		await _play_animation_safe("UI_Hide")
+
+	_clear_dicier_nodes()
+	queue_free()
+	return results
+
 func _spawn_dicier_nodes(players_data: Array) -> void:
 	if not players_container:
 		return
