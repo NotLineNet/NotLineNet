@@ -115,7 +115,7 @@ func _on_reload_button_pressed() -> void:
 
 func _on_button_finish_pressed() -> void:
 	if game_manager:
-		game_manager.current_player_finished_moving()
+		game_manager.request_player_finish_turn()
 
 func _on_start_button_pressed() -> void:
 	if game_manager:

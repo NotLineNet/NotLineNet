@@ -282,6 +282,11 @@ func center_camera_on_tile(target_tile: Tile):
 	# Включаем режим центрирования (интерполяция будет происходить в _process)
 	is_centering_on_tile = true
 
+func stop_auto_centering():
+	"""Останавливает автоматическое центрирование камеры (чтобы не перескакивало на старый тайл)."""
+	is_centering_on_tile = false
+	target_tile_position = global_position
+
 func _get_active_player() -> Player:
 	var tree := get_tree()
 	if not tree:

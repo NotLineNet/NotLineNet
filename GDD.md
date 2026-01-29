@@ -77,19 +77,16 @@ _start_first_day()
     │
     └─ Повтор для каждого игрока
     ↓
-current_player_finished_moving() [GameManager]
-    ├─ Ждем 2 сек (TURN_SWITCH_DELAY)
-    ├─ _move_to_next_player()
-    │  ├─ Переключение активного игрока
-    │  ├─ Камера на нового (0.3 сек анимация)
-    │  └─ Показ UI
-    ├─ Если больше нет игроков → all_players_finished_moving()
+request_player_finish_turn() [GameManager]
+    ├─ Отправка события в TurnStateMachine о желании игрока закончить ход
+    ├─ FSM делает DecidePlayerTurn -> PrepareEndTurn / CanPlayerActAgain
+    ├─ Когда все игроки завершили ходы, FSM эмитит turns_completed → night cycle
     │
 start_new_day()
     ├─ currentGameDay += 1
     ├─ Рефилл ОД
     ├─ Активный = players[0]
-    └─ Цикл повторяется...
+    └─ FSM стартует для нового игрока...
 ```
 
 ---
@@ -111,9 +108,9 @@ start_new_day()
 - `game_loaded_full()` → запуск intro
 - `game_started()` → включение UI и цикла ходов
 - `register_player(player)` → добавление игрока в список
-- `current_player_finished_moving()` → переход к следующему игроку
+- `request_player_finish_turn()` → триггер для TurnStateMachine при завершении хода
 - `set_active_player(player)` → переключение активного (с отключением сигналов от предыдущего)
-- `_focus_camera_on_active_player()` → анимация камеры
+- `_focus_camera_on_player(player)` → вспомогательная анимация камеры для FSM
 
 **Сигналы:**
 - `active_player_changed(new_player)` → слушают UI, PlayerManager, Tile
@@ -355,7 +352,7 @@ PlayersViewParams = [
 - **Последовательность:** Игрок 1 → Игрок 2 → Игрок 3 → новый день
 - **Блокировка:** Во время анимации движения нельзя кликать
 - **Задержка между ходами:** 2 сек (TURN_SWITCH_DELAY)
-- **Кнопка "Закончить ход":** Нажимается, когда ОД=0, вызывает `current_player_finished_moving()`
+- **Кнопка "Закончить ход":** Нажимается, когда ОД=0, вызывает `request_player_finish_turn()`
 
 ### 5.3 Система визуальной обратной связи
 - **Маркеры выходов:** 

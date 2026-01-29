@@ -11,6 +11,7 @@ const GameConfig = preload("res://scripts/core/GameConfig.gd")
 const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 const DiceGameUI = preload("res://scripts/ui/DiceGameUI.gd")
 const MonsterManager = preload("res://scripts/core/MonsterManager.gd")
+const TurnStateMachine = preload("res://scripts/turns/TurnStateMachine.gd")
 enum GameState { INIT, INTRO, DRAW_LOTS, DAY, BATTLE, SWITCHING_TURN, NIGHT, WAITING_NEW_DAY }
 const INTRO_SCENE_PATH := "res://scenes/ui/IntroCutScene.tscn"
 const DICE_GAME_UI_SCENE_PATH := "res://scenes/ui/DiceGameUI.tscn"
@@ -28,7 +29,7 @@ var _intro_started := false
 var _intro_completed := false
 var state: GameState = GameState.INIT
 var _dice_ui_instance
-var _pending_turn_start_player: Player = null
+var _turn_state_machine: TurnStateMachine
 
 @onready var player_ui := get_node_or_null("../UI/PlayerUI")
 @onready var hud_ui := get_node_or_null("../UI/HUD(cheats)")
@@ -46,6 +47,30 @@ func _ready() -> void:
 	_update_day_label()
 	await get_tree().process_frame
 	_prepare_initial_ui_state()
+	_init_turn_state_machine()
+
+
+func _init_turn_state_machine() -> void:
+	"""Создаёт FSM для управления ходами и связывает её с менеджером."""
+	if _turn_state_machine:
+		return
+	_turn_state_machine = TurnStateMachine.new()
+	add_child(_turn_state_machine)
+	_turn_state_machine.set_dependencies({
+		"get_monster_on_tile": Callable(self, "_get_monster_on_tile"),
+		"can_player_act_again": Callable(self, "_can_player_act_again"),
+		"get_next_player": Callable(self, "_get_next_player"),
+		"set_active_player": Callable(self, "set_active_player"),
+		"handle_prepare_end_turn": Callable(self, "_handle_prepare_end_turn")
+	})
+	_turn_state_machine.connect("request_camera_center", Callable(self, "_on_turn_request_camera_center"))
+	_turn_state_machine.connect("show_player_ui", Callable(self, "_on_turn_show_player_ui"))
+	_turn_state_machine.connect("hide_player_ui", Callable(self, "_on_turn_hide_player_ui"))
+	_turn_state_machine.connect("enable_player_input", Callable(self, "_on_turn_enable_player_input"))
+	_turn_state_machine.connect("disable_player_input", Callable(self, "_on_turn_disable_player_input"))
+	_turn_state_machine.connect("start_combat", Callable(self, "_on_turn_start_combat"))
+	_turn_state_machine.connect("state_changed", Callable(self, "_on_turn_state_changed"))
+	_turn_state_machine.connect("turns_completed", Callable(self, "_on_turns_completed"))
 
 func _prepare_initial_ui_state() -> void:
 	if ui_layer:
@@ -58,6 +83,86 @@ func _prepare_initial_ui_state() -> void:
 
 func _log_state(label: String) -> void:
 	print("Game state: %s" % label)
+
+# Turn state machine helpers --------------------------------------------------
+
+func _get_monster_on_tile(player: Player) -> Monster:
+	if not player or not player.current_tile:
+		return null
+	return player.current_tile.occupying_monster
+
+func _can_player_act_again(player: Player) -> bool:
+	if not player:
+		return false
+	if player.has_method("can_act_again"):
+		return bool(player.call("can_act_again"))
+	return player.action_points > GameConfig.MIN_ACTION_POINTS
+
+func _get_next_player(player: Player) -> Player:
+	if not player:
+		return null
+	var index := players.find(player)
+	if index == -1:
+		return null
+	var next_index := index + 1
+	if next_index >= players.size():
+		return null
+	return players[next_index]
+
+func _handle_prepare_end_turn(player: Player) -> void:
+	"""Вызывается перед завершением хода, чтобы изменить глобальный статус."""
+	state = GameState.SWITCHING_TURN
+	if player:
+		emit_signal("player_turn_finished", player)
+
+func _on_turn_request_camera_center(player: Player) -> void:
+	if not _turn_state_machine:
+		return
+	if not player or not player.current_tile:
+		_turn_state_machine.handle_event("camera_centered", player)
+		return
+	await _focus_camera_on_player(player)
+	_turn_state_machine.handle_event("camera_centered", player)
+
+func _on_turn_show_player_ui(player: Player) -> void:
+	_show_player_ui()
+
+func _on_turn_hide_player_ui() -> void:
+	_hide_player_ui()
+
+func _on_turn_enable_player_input(player: Player) -> void:
+	_set_player_input_enabled(true)
+
+func _on_turn_disable_player_input() -> void:
+	_set_player_input_enabled(false)
+
+func _set_player_input_enabled(enabled: bool) -> void:
+	if not camera_root:
+		camera_root = _find_camera_root()
+	if camera_root:
+		camera_root.set_input_enabled(enabled)
+
+func _on_turn_start_combat(player: Player, monster: Monster) -> void:
+	if player and monster:
+		# FSM вызывает бой, GameManager отвечает за запуск матч-логики и возврат в DAY.
+		await start_monster_battle(player, monster)
+
+func _on_turn_state_changed(label: String, player: Player) -> void:
+	_log_state("turn %s (%s)" % [label, player.name if player else "none"])
+	if label == "PlayerTurn":
+		# Как только игрок готов к действию, возвращаемся в дневной режим и обновляем UI.
+		state = GameState.DAY
+		emit_signal("new_player_started_moving", player)
+	elif label == "PrepareTurn":
+		# Начинаем подготовку, чтобы не оставаться в режиме переключения между ходами.
+		state = GameState.DAY
+	elif label == "EndTurn" and not player:
+		state = GameState.DAY
+
+func _on_turns_completed() -> void:
+	if _turn_state_machine:
+		_turn_state_machine.stop()
+	await _start_night_cycle()
 
 func game_loaded_full() -> void:
 	if state != GameState.INIT:
@@ -206,30 +311,11 @@ func register_player(player: Player) -> void:
 	player.add_to_group("player")
 	player.set_active(false)
 
-func current_player_finished_moving() -> void:
-	if state != GameState.DAY or not active_player:
+func request_player_finish_turn() -> void:
+	"""Вызывается, когда игрок завершает ход из UI."""
+	if not _turn_state_machine:
 		return
-	if active_player:
-		emit_signal("player_turn_finished", active_player)
-	state = GameState.SWITCHING_TURN
-	_hide_player_ui()
-	var timer := get_tree().create_timer(GameConfig.TURN_SWITCH_DELAY)
-	await timer.timeout
-	var moved := await _move_to_next_player()
-	if moved:
-		state = GameState.DAY
-		return
-	await _start_night_cycle()
-
-func _move_to_next_player() -> bool:
-	if players.size() == 0 or _active_player_index == -1:
-		return false
-	var next_index := _active_player_index + 1
-	if next_index >= players.size():
-		return false
-	set_active_player(players[next_index])
-	await _start_turn_for_active_player()
-	return true
+	_turn_state_machine.handle_event("player_requested_finish")
 
 func all_players_finished_moving() -> void:
 	await _start_night_cycle()
@@ -309,57 +395,6 @@ func _hide_player_ui() -> void:
 	if player_ui:
 		player_ui.hide_player_ui()
 
-# Готовит начало хода: камера -> проверка боя -> показ UI -> сигнал
-func _start_turn_for_active_player() -> void:
-	if not active_player:
-		return
-	_hide_player_ui()
-	await _focus_camera_on_active_player()
-	var ready := await _prepare_active_player_for_turn(active_player)
-	if ready:
-		emit_signal("new_player_started_moving", active_player)
-
-func _prepare_active_player_for_turn(player: Player) -> bool:
-	if not player:
-		return false
-	_hide_player_ui()
-	if player.is_dead:
-		_hide_player_ui()
-		var previous_input_enabled := true
-		if camera_root:
-			previous_input_enabled = camera_root.input_enabled
-			camera_root.set_input_enabled(false)
-		var animation_player := player.get_node_or_null("AnimationPlayer") as AnimationPlayer
-		if animation_player and animation_player.has_animation("Alive"):
-			animation_player.play("Alive")
-			await animation_player.animation_finished
-		if player.has_method("mark_alive"):
-			player.mark_alive()
-		if camera_root:
-			camera_root.set_input_enabled(previous_input_enabled)
-		if await _start_pending_monster_encounter(player):
-			return false
-		_show_player_ui()
-		return true
-	if await _start_pending_monster_encounter(player):
-		return false
-	_show_player_ui()
-	return true
-
-func _start_pending_monster_encounter(player: Player) -> bool:
-	if not player or not player.current_tile:
-		return false
-	var monster := player.current_tile.occupying_monster
-	if not monster or not monster.is_inside_tree():
-		return false
-	if monster.is_dead:
-		return false
-	if state == GameState.BATTLE:
-		return false
-	_pending_turn_start_player = player
-	await start_monster_battle(player, monster)
-	return true
-
 func _update_day_label() -> void:
 	if not hud_ui:
 		hud_ui = get_node_or_null("../UI/HUD(cheats)")
@@ -380,14 +415,17 @@ func _find_camera_root() -> CameraDrag:
 		camera_root = found
 	return found
 
-func _focus_camera_on_active_player() -> void:
-	if not active_player or not active_player.current_tile:
+func _focus_camera_on_player(player: Player) -> void:
+	"""Фокусирует камеру на конкретном игроке и ждёт завершения движения."""
+	if not player or not player.current_tile:
 		return
 	var target_root := _find_camera_root()
 	if not target_root:
 		return
+	if target_root.has_method("stop_auto_centering"):
+		target_root.stop_auto_centering()
 	var tween := target_root.focus_on_tile(
-		active_player.current_tile,
+		player.current_tile,
 		GameConfig.CAMERA_DELAY,
 		GameConfig.CAMERA_MOVE_DURATION
 	)
@@ -443,7 +481,19 @@ func start_monster_battle(player: Player, monster: Monster) -> void:
 	await timer.timeout
 	var results := await _run_monster_battle(player, monster)
 	var player_won := await _process_battle_outcome(results, player, monster)
-	await _finish_battle_and_advance_turn(player_won)
+	state = GameState.DAY
+	if player_won:
+		_set_player_input_enabled(true)
+		_show_player_ui()
+	else:
+		_clear_active_player()
+	if _turn_state_machine:
+		var combat_result := "lose"
+		if player_won:
+			combat_result = "win"
+		_turn_state_machine.handle_event("combat_resolved", combat_result)
+		if not player_won:
+			_turn_state_machine.handle_event("player_death_animation_finished", player)
 
 func _run_monster_battle(player: Player, monster: Monster) -> Array:
 	var participants_data: Array = []
@@ -535,21 +585,6 @@ func _handle_player_defeat(player: Player) -> void:
 	if animation_player and animation_player.has_animation("Death"):
 		animation_player.play("Death")
 		await animation_player.animation_finished
-
-func _finish_battle_and_advance_turn(player_won: bool) -> void:
-	_ensure_camera_nodes()
-	if camera_root:
-		camera_root.set_input_enabled(true)
-	state = GameState.DAY
-	if player_won:
-		if _pending_turn_start_player:
-			await _focus_camera_on_active_player()
-			emit_signal("new_player_started_moving", _pending_turn_start_player)
-		_pending_turn_start_player = null
-		_show_player_ui()
-		return
-	_pending_turn_start_player = null
-	await current_player_finished_moving()
 
 func _build_lottery_player_data() -> Array:
 	var data: Array = []
@@ -662,7 +697,9 @@ func _start_day_cycle(increment_day: bool) -> void:
 	if players.size() > 0:
 		set_active_player(players[0])
 		_show_core_ui()
-		await _start_turn_for_active_player()
+		# FSM самостоятельно подготовит игрока и камеры.
+		if _turn_state_machine and active_player:
+			_turn_state_machine.start_for_player(active_player)
 
 func _start_night_cycle() -> void:
 	state = GameState.NIGHT
