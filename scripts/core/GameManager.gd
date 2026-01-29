@@ -464,13 +464,16 @@ func _run_dice_lottery() -> Array:
 		return _generate_rolls_from_data(players_data)
 	return results
 
-func start_monster_battle(player: Player, monster: Monster) -> void:
+func start_monster_battle(player: Player, monster: Monster, from_tile: bool = false) -> void:
+	print("Битва с монстром")
 	if not player or not monster:
 		return
 	if state == GameState.BATTLE:
 		return
 	if state != GameState.DAY and state != GameState.SWITCHING_TURN:
 		return
+	if from_tile and player:
+		player.mark_tile_combat_requested()
 	_log_state("бой")
 	state = GameState.BATTLE
 	_hide_player_ui()
@@ -494,6 +497,8 @@ func start_monster_battle(player: Player, monster: Monster) -> void:
 		_turn_state_machine.handle_event("combat_resolved", combat_result)
 		if not player_won:
 			_turn_state_machine.handle_event("player_death_animation_finished", player)
+	if from_tile and player:
+		player.consume_tile_combat_request()
 
 func _run_monster_battle(player: Player, monster: Monster) -> Array:
 	var participants_data: Array = []

@@ -458,7 +458,7 @@ func _handle_room_player_entered() -> void:
 	if occupying_monster:
 		var gm := _get_game_manager()
 		if gm and gm.has_method("start_monster_battle"):
-			gm.start_monster_battle(player, occupying_monster)
+			gm.start_monster_battle(player, occupying_monster, true)
 		return
 
 	match room_type:

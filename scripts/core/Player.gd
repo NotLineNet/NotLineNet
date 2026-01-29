@@ -21,6 +21,7 @@ var last_dice_roll: int = 0
 var is_dead := false
 var pending_respawn := false
 var _default_body_position: Vector3 = Vector3.ZERO
+var _tile_combat_requested := false
 
 # Размер игрока - половина размера тайла (TILE_SIZE = 2.0, значит игрок = 1.0)
 const PLAYER_SIZE := 1.0
@@ -220,6 +221,16 @@ func add_action_point():
 		action_points += 1
 		action_points_changed.emit(action_points)
 		_refresh_exit_colors()
+
+func mark_tile_combat_requested():
+	"""Запоминает, что бой уже запущен извне (например, с клетки)."""
+	_tile_combat_requested = true
+
+func consume_tile_combat_request() -> bool:
+	"""Сбрасывает флаг внешнего боя и возвращает, был ли он установлен."""
+	var value := _tile_combat_requested
+	_tile_combat_requested = false
+	return value
 
 func refill_action_points():
 	"""Восстанавливает очки действий до максимума"""

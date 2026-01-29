@@ -123,3 +123,27 @@ offset_bottom = 4.0
 grow_horizontal = 2
 grow_vertical = 2
 text = "далее"
+
+[node name="DebugControls" type="HBoxContainer" parent="." unique_id=-1030869243]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -293.90503
+offset_top = -111.59003
+offset_right = -45.850037
+offset_bottom = -9.5896
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="WinButton" type="Button" parent="DebugControls" unique_id=1673487742]
+self_modulate = Color(1, 1, 1, 0.14509805)
+layout_mode = 2
+text = "Выиграть"
+
+[node name="LoseButton" type="Button" parent="DebugControls" unique_id=1987654321]
+self_modulate = Color(1, 1, 1, 0.14509805)
+layout_mode = 2
+text = "Проиграть"

@@ -14,6 +14,9 @@ func enter(ctx: Dictionary) -> void:
 	var player = ctx.get("player")
 	if not fsm or not player:
 		return
+	if player.consume_tile_combat_request():
+		ctx["combat_in_progress"] = true
+		return
 	ctx["combat_in_progress"] = false
 	var monster = fsm.call_dep("get_monster_on_tile", [player])
 	if monster and monster.is_inside_tree() and not monster.is_dead:
@@ -40,4 +43,4 @@ func handle_event(event: StringName, data: Variant, ctx: Dictionary) -> void:
 			fsm._set_state(TurnStateMachine.StateName.PLAYER_TURN)
 		"lose":
 			ctx["force_prepare_end_turn"] = true
-			fsm._set_state(TurnStateMachine.StateName.PLAYER_TURN)
+			fsm._set_state(TurnStateMachine.StateName.PREPARE_END_TURN)
