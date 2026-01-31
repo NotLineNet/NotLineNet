@@ -82,7 +82,6 @@ func _process(delta: float) -> void:
 func _set_state(state_name: StateName) -> void:
 	_current_state_name = state_name
 	if _current:
-		print("activestate:", STATE_LABELS.get(state_name, "Unknown"))
 		_current.exit(ctx)
 	_current = _states.get(state_name, null)
 	if _current:

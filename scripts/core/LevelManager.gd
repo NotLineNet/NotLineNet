@@ -14,7 +14,7 @@ const Directions = preload("res://scripts/core/Directions.gd")
 @export var path_line_height: float = 0.12
 @export var loop_connection_chance: float = 0.28
 @export var max_deadend_ratio: float = 0.18
-@export var monster_night_stay_chance: float = 0
+@export var monster_night_stay_chance: float = 0.1
 
 const TILE_SIZE := GameConfig.TILE_SIZE
 const DIRECTIONS: Array[Vector2i] = Directions.ALL

@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://b827cs0je0qho"]
+
+[node name="RoomUI" type="Control" unique_id=1680258191]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ButtonsRoot" type="Control" parent="." unique_id=937814980]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 19.999512
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ButtonsRoot" unique_id=909982788]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ChestButton" type="Button" parent="ButtonsRoot/VBoxContainer" unique_id=1496990240]
+layout_mode = 2
+text = "Открыть"
+
+[node name="MonsterFightButton" type="Button" parent="ButtonsRoot/VBoxContainer" unique_id=1143710867]
+layout_mode = 2
+text = "Драться"
+
+[node name="MonsterRunButton" type="Button" parent="ButtonsRoot/VBoxContainer" unique_id=1523979237]
+layout_mode = 2
+text = "Бежать"
+
+[node name="RoomExplore" type="Button" parent="ButtonsRoot/VBoxContainer" unique_id=363928063]
+layout_mode = 2
+text = "Обыскать"
