@@ -6,6 +6,7 @@ signal active_player_action_points_changed(new_value: int)
 signal new_player_started_moving(new_player: Player)
 signal player_turn_finished(player: Player)
 signal gameplay_started
+signal player_ready_after_battle(player: Player)
 
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
 const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
@@ -488,6 +489,8 @@ func start_monster_battle(player: Player, monster: Monster, from_tile: bool = fa
 	if player_won:
 		_set_player_input_enabled(true)
 		_show_player_ui()
+		if from_tile:
+			emit_signal("player_ready_after_battle", player)
 	else:
 		_clear_active_player()
 	if _turn_state_machine:

@@ -1,5 +1,6 @@
 extends Node
 
+const CameraDrag = preload("res://scripts/core/CameraDrag.gd")
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
 const GameManager = preload("res://scripts/core/GameManager.gd")
 const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
@@ -10,16 +11,25 @@ const RoomUI = preload("res://scenes/ui/RoomUI.tscn")
 var _game_manager: GameManager
 var _room_ui_instance: Control
 var _current_tile: Tile
+var _marker_target: Node3D
 var _buttons: Dictionary = {}
 var _tracked_player: Player
 var _player_turn_active := false
 var _moved_callable: Callable
 var _movement_started_callable: Callable
+var _player_ready_after_battle_callable: Callable
+var _tile_exit_callable: Callable
+var _exit_connected_tile: Tile
 var _finish_button: Button
+var _camera_root: CameraDrag
+var _camera: Camera3D
 
 func _ready() -> void:
+	set_process(true)
 	_moved_callable = Callable(self, "_on_player_moved_to_tile")
 	_movement_started_callable = Callable(self, "_on_player_movement_started")
+	_player_ready_after_battle_callable = Callable(self, "_on_player_ready_after_battle")
+	_tile_exit_callable = Callable(self, "_on_tile_exit_requested")
 	_game_manager = NodeLocator.game_manager(get_tree())
 	if not _game_manager:
 		await get_tree().process_frame
@@ -30,6 +40,13 @@ func _ready() -> void:
 	_finish_button = get_parent().get_node_or_null("PlayerUI/PanelRoot/ButtonFinish") as Button
 	if _finish_button and not _finish_button.is_connected("pressed", Callable(self, "_on_finish_button_pressed")):
 		_finish_button.pressed.connect(Callable(self, "_on_finish_button_pressed"))
+	_ensure_camera_nodes()
+
+func _process(_delta: float) -> void:
+	if not _room_ui_instance:
+		return
+	_ensure_camera_nodes()
+	_update_room_ui_position()
 
 func _connect_game_manager_signals() -> void:
 	if not _game_manager:
@@ -38,6 +55,7 @@ func _connect_game_manager_signals() -> void:
 	var turn_finished := Callable(self, "_on_player_turn_finished")
 	var active_changed := Callable(self, "_on_active_player_changed")
 	var ap_changed := Callable(self, "_on_action_points_changed")
+	var post_battle := Callable(self, "_on_player_ready_after_battle")
 	if not _game_manager.is_connected("new_player_started_moving", turn_started):
 		_game_manager.connect("new_player_started_moving", turn_started)
 	if not _game_manager.is_connected("player_turn_finished", turn_finished):
@@ -46,6 +64,8 @@ func _connect_game_manager_signals() -> void:
 		_game_manager.connect("active_player_changed", active_changed)
 	if not _game_manager.is_connected("active_player_action_points_changed", ap_changed):
 		_game_manager.connect("active_player_action_points_changed", ap_changed)
+	if not _game_manager.is_connected("player_ready_after_battle", post_battle):
+		_game_manager.connect("player_ready_after_battle", post_battle)
 
 func _connect_player_signals(player: Player) -> void:
 	_disconnect_player_signals()
@@ -70,11 +90,13 @@ func _on_player_turn_started(player: Player) -> void:
 	_player_turn_active = true
 	_connect_player_signals(player)
 	if player and not player.is_moving:
+		_update_exit_connection(player.current_tile)
 		_show_room_ui_for_tile(player.current_tile)
 
 func _on_player_turn_finished(_player: Player) -> void:
 	_player_turn_active = false
 	_clear_room_ui()
+	_disconnect_tile_exit()
 
 func _on_active_player_changed(player: Player) -> void:
 	_connect_player_signals(player)
@@ -84,6 +106,7 @@ func _on_active_player_changed(player: Player) -> void:
 func _on_player_moved_to_tile(tile: Tile) -> void:
 	if not _player_turn_active:
 		return
+	_update_exit_connection(tile)
 	_show_room_ui_for_tile(tile)
 
 func _on_player_movement_started() -> void:
@@ -111,8 +134,11 @@ func _show_room_ui_for_tile(tile: Tile) -> void:
 		parent.add_child(instance)
 	_room_ui_instance = instance
 	_current_tile = tile
+	_marker_target = tile.get_node_or_null("MarkerForRoomUI") as Node3D
 	_initialize_room_ui(instance)
 	_update_room_ui_buttons()
+	_ensure_camera_nodes()
+	_update_room_ui_position()
 
 func _initialize_room_ui(instance: Control) -> void:
 	_buttons.clear()
@@ -176,12 +202,21 @@ func _clear_room_ui() -> void:
 		_room_ui_instance.queue_free()
 	_room_ui_instance = null
 	_current_tile = null
+	_marker_target = null
 	_buttons.clear()
+	_disconnect_tile_exit()
 
 func _get_active_player() -> Player:
 	if not _game_manager:
 		return null
 	return _game_manager.active_player
+
+func _on_player_ready_after_battle(player: Player) -> void:
+	if not _player_turn_active:
+		return
+	if not player or player != _tracked_player:
+		return
+	_show_room_ui_for_tile(player.current_tile)
 
 func _on_room_explore_pressed() -> void:
 	var player := _get_active_player()
@@ -217,4 +252,61 @@ func _on_monster_run_pressed() -> void:
 		return
 	if player.action_points > GameConfig.MIN_ACTION_POINTS:
 		player.spend_action_point()
+	if _current_tile and _current_tile.has_method("_unlock_exits_for_monster"):
+		_current_tile._unlock_exits_for_monster()
 	_clear_room_ui()
+
+func _update_exit_connection(tile: Tile) -> void:
+	if _exit_connected_tile == tile:
+		return
+	_disconnect_tile_exit()
+	if tile and tile.exit_clicked:
+		tile.exit_clicked.connect(_tile_exit_callable)
+		_exit_connected_tile = tile
+
+func _disconnect_tile_exit() -> void:
+	if _exit_connected_tile and _tile_exit_callable and _exit_connected_tile.exit_clicked.is_connected(_tile_exit_callable):
+		_exit_connected_tile.exit_clicked.disconnect(_tile_exit_callable)
+	_exit_connected_tile = null
+
+func _on_tile_exit_requested(_tile: Tile, _dir: Vector2i) -> void:
+	if not _player_turn_active:
+		return
+	_clear_room_ui()
+
+func _ensure_camera_nodes() -> void:
+	if _camera_root and is_instance_valid(_camera_root):
+		if not _camera and _camera_root.camera:
+			_camera = _camera_root.camera
+		return
+	_camera_root = NodeLocator.camera_root(self)
+	if _camera_root:
+		_camera = _camera_root.camera
+
+func _update_room_ui_position() -> void:
+	if not _room_ui_instance or not _marker_target or not _camera:
+		return
+	var viewport := get_viewport()
+	if not viewport:
+		_room_ui_instance.visible = false
+		return
+	var visible_rect := viewport.get_visible_rect()
+	if visible_rect.size == Vector2.ZERO:
+		_room_ui_instance.visible = false
+		return
+	if not _is_camera_preset_zero():
+		_room_ui_instance.visible = false
+		return
+	var world_pos := _marker_target.global_transform.origin
+	if _camera.is_position_behind(world_pos):
+		_room_ui_instance.visible = false
+		return
+	var screen_pos := _camera.unproject_position(world_pos)
+	if not visible_rect.has_point(screen_pos):
+		_room_ui_instance.visible = false
+		return
+	_room_ui_instance.visible = true
+	_room_ui_instance.global_position = screen_pos - _room_ui_instance.pivot_offset
+
+func _is_camera_preset_zero() -> bool:
+	return not _camera_root or _camera_root.zoom_level == 0

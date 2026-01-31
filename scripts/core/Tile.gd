@@ -26,6 +26,7 @@ var room_type: int = RoomType.EMPTY
 var room_assigned := false
 var room_content: Node3D
 var has_opened := false
+var _exits_locked_due_to_monster := false
 
 enum WallVisual {
 	BLOCKED,
@@ -186,7 +187,8 @@ func _update_gate_colors(force_inactive: bool = false):
 		if mesh:
 			if not mesh.material_override:
 				mesh.material_override = StandardMaterial3D.new()
-			mesh.material_override.albedo_color = _get_gate_color_for_dir(dir, force_inactive)
+			var gray := force_inactive or _exits_locked_due_to_monster
+			mesh.material_override.albedo_color = _get_gate_color_for_dir(dir, gray)
 		else:
 			print("Tile %s: MeshInstance3D not found in marker %s" % [str(grid_pos), marker.name])
 
@@ -422,10 +424,10 @@ func show_tile():
 	if base_room:
 		base_room.visible = true
 	for marker in exit_markers.values():
-		marker.input_ray_pickable = true
+		marker.input_ray_pickable = not _exits_locked_due_to_monster
 		var shape := marker.get_node_or_null("CollisionShape3D") as CollisionShape3D
 		if shape:
-			shape.disabled = false
+			shape.disabled = _exits_locked_due_to_monster
 	_ensure_room_generated()
 	if not has_opened:
 		has_opened = true
@@ -448,6 +450,7 @@ func _handle_room_player_entered() -> void:
 		return
 
 	if occupying_monster:
+		_lock_exits_for_monster()
 		return
 
 	if room_type == RoomType.AMBUSH:
@@ -478,7 +481,29 @@ func claim_chest() -> void:
 func _clear_monster() -> void:
 	if occupying_monster:
 		occupying_monster.despawn()
+		_unlock_exits_for_monster()
 	occupying_monster = null
+
+func _unlock_exits_for_monster():
+	if not _exits_locked_due_to_monster:
+		return
+	_exits_locked_due_to_monster = false
+	_refresh_exit_interaction()
+
+func _lock_exits_for_monster():
+	if _exits_locked_due_to_monster:
+		return
+	_exits_locked_due_to_monster = true
+	_refresh_exit_interaction()
+
+func _refresh_exit_interaction():
+	for marker in exit_markers.values():
+		if marker:
+			marker.input_ray_pickable = not _exits_locked_due_to_monster
+			var shape := marker.get_node_or_null("CollisionShape3D") as CollisionShape3D
+			if shape:
+				shape.disabled = _exits_locked_due_to_monster
+	_update_gate_colors()
 
 func _pick_room_type() -> int:
 	var roll := randf()
@@ -523,6 +548,7 @@ func _spawn_monster() -> void:
 	monster_root.add_child(instance)
 	if instance.has_method("initialize_on_tile"):
 		instance.call("initialize_on_tile", self)
+	room_type = RoomType.EMPTY
 
 func _get_monster_root() -> Node3D:
 	var level_manager := _get_level_manager()

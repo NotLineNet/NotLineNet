@@ -48,6 +48,8 @@ func move_to_tile(target_tile: Tile) -> void:
 
 func despawn() -> void:
 	if current_tile and current_tile.occupying_monster == self:
+		if current_tile.has_method("_unlock_exits_for_monster"):
+			current_tile._unlock_exits_for_monster()
 		current_tile.occupying_monster = null
 	if level_manager:
 		level_manager.unregister_monster(self)

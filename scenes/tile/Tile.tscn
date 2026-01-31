@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://34iqiybudqgv"]
+[gd_scene format=3 uid="uid://34iqiybudqgv"]
 
 [ext_resource type="Script" uid="uid://bq4rut2su25fc" path="res://scripts/core/Tile.gd" id="1_el6ae"]
 
@@ -51,3 +51,6 @@ transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 1
 
 [node name="LeftWall" type="Node3D" parent="WallsContainer"]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -2, 1, 0)
+
+[node name="MarkerForRoomUI" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2251494, 0)

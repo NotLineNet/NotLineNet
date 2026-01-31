@@ -9,7 +9,7 @@
 [ext_resource type="PackedScene" uid="uid://c73qdi2dyokjj" path="res://scenes/player/Player.tscn" id="3_6q06x"]
 [ext_resource type="Script" uid="uid://bd2sxyxkbsxw5" path="res://scripts/ui/UI.gd" id="4_l3cfh"]
 [ext_resource type="PackedScene" uid="uid://cmwyo7p4h6jyf" path="res://scenes/ui/PlayerUI.tscn" id="6_ow5a4"]
-[ext_resource type="Script" uid="uid://roomui_ctrl_script" path="res://scripts/ui/RoomUIController.gd" id="8_roomui"]
+[ext_resource type="Script" path="res://scripts/ui/RoomUIController.gd" id="8_roomui"]
 
 [node name="Main" type="Node3D" unique_id=1681537461]
 
