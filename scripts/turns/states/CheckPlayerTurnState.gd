@@ -37,10 +37,20 @@ func handle_event(event: StringName, data: Variant, ctx: Dictionary) -> void:
 	var fsm: TurnStateMachine = ctx.get("machine")
 	if not fsm:
 		return
-	match str(data):
-		"win":
-			ctx["force_prepare_end_turn"] = false
-			fsm._set_state(TurnStateMachine.StateName.PLAYER_TURN)
-		"lose":
-			ctx["force_prepare_end_turn"] = true
-			fsm._set_state(TurnStateMachine.StateName.PREPARE_END_TURN)
+	var payload: Dictionary = _parse_combat_result(data)
+	var result: String = payload.get("result", "") as String
+	var player_died: bool = bool(payload.get("player_died", false))
+	if result == "win" or (result == "lose" and not player_died):
+		ctx["force_prepare_end_turn"] = false
+		fsm._set_state(TurnStateMachine.StateName.PLAYER_TURN)
+	elif result == "lose" and player_died:
+		ctx["force_prepare_end_turn"] = true
+		fsm._set_state(TurnStateMachine.StateName.PREPARE_END_TURN)
+
+func _parse_combat_result(data: Variant) -> Dictionary:
+	if data is Dictionary:
+		return {
+			"result": str(data.get("result", "")),
+			"player_died": bool(data.get("player_died", false))
+		}
+	return {"result": str(data), "player_died": false}

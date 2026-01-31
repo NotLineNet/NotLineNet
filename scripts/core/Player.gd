@@ -7,6 +7,7 @@ const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 signal action_points_changed(new_value: int)
 signal moved_to_tile(new_tile: Tile)
 signal movement_started()
+signal health_changed(new_value: int, old_value: int)
 
 const MAX_ACTION_POINTS := GameConfig.MAX_ACTION_POINTS
 const MIN_ACTION_POINTS := GameConfig.MIN_ACTION_POINTS
@@ -21,6 +22,7 @@ var action_points: int = GameConfig.MAX_ACTION_POINTS  # Количество о
 var last_dice_roll: int = 0
 var is_dead := false
 var pending_respawn := false
+var health_points: int = GameConfig.PLAYER_STARTING_HEALTH
 var _default_body_position: Vector3 = Vector3.ZERO
 var _tile_combat_requested := false
 
@@ -60,6 +62,15 @@ func set_active(active: bool) -> void:
 	is_active = active
 	if is_active and current_tile:
 		current_tile.on_player_entered()
+
+func take_damage(amount: int) -> bool:
+	if amount <= 0:
+		return false
+	var old_value := health_points
+	health_points = max(health_points - amount, 0)
+	if health_points != old_value:
+		health_changed.emit(health_points, old_value)
+	return health_points == 0
 
 func initialize_on_tile(tile: Tile):
 	"""Размещает игрока на указанном тайле (стартовый зеленый тайл)"""
@@ -271,6 +282,13 @@ func respawn_to_start_tile() -> void:
 func mark_alive() -> void:
 	is_dead = false
 	_restore_body_image_position()
+	_reset_health_to_max()
+
+func _reset_health_to_max() -> void:
+	var old_value := health_points
+	health_points = GameConfig.PLAYER_STARTING_HEALTH
+	if health_points != old_value:
+		health_changed.emit(health_points, old_value)
 
 func _teleport_to_tile(target_tile: Tile) -> void:
 	if not target_tile:

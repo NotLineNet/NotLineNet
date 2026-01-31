@@ -344,6 +344,7 @@ func set_active_player(player: Player) -> void:
 	active_player.set_active(true)
 	_connect_active_player_signals()
 	_on_active_player_action_points_changed(active_player.action_points)
+	_refresh_player_health_display()
 	emit_signal("active_player_changed", active_player)
 
 func _clear_active_player() -> void:
@@ -359,15 +360,31 @@ func _connect_active_player_signals() -> void:
 		return
 	if not active_player.action_points_changed.is_connected(_on_active_player_action_points_changed):
 		active_player.action_points_changed.connect(_on_active_player_action_points_changed)
+	if not active_player.health_changed.is_connected(_on_active_player_health_changed):
+		active_player.health_changed.connect(_on_active_player_health_changed)
 
 func _disconnect_active_player_signals(player: Player) -> void:
 	if not player:
 		return
 	if player.action_points_changed.is_connected(_on_active_player_action_points_changed):
 		player.action_points_changed.disconnect(_on_active_player_action_points_changed)
+	if player.health_changed.is_connected(_on_active_player_health_changed):
+		player.health_changed.disconnect(_on_active_player_health_changed)
 
 func _on_active_player_action_points_changed(new_value: int) -> void:
 	emit_signal("active_player_action_points_changed", new_value)
+
+func _on_active_player_health_changed(new_value: int, old_value: int) -> void:
+	if not player_ui:
+		player_ui = get_node_or_null("../UI/PlayerUI")
+	if not player_ui:
+		return
+	var loss := old_value - new_value
+	if loss > 0:
+		player_ui.queue_hp_loss_animation(loss, new_value)
+		return
+	player_ui.set_health_icons(new_value)
+	player_ui.reset_pending_hp_loss()
 
 func _refill_player_action_points() -> void:
 	for player in players:
@@ -407,6 +424,15 @@ func _refresh_player_display() -> void:
 		player_manager = get_node_or_null("../PlayerManager")
 	if player_manager and player_manager.has_method("update_active_player_display"):
 		player_manager.call("update_active_player_display", active_player)
+	_refresh_player_health_display()
+
+func _refresh_player_health_display() -> void:
+	if not player_ui:
+		player_ui = get_node_or_null("../UI/PlayerUI")
+	if not player_ui or not active_player:
+		return
+	player_ui.set_health_icons(active_player.health_points)
+	player_ui.reset_pending_hp_loss()
 
 func _find_camera_root() -> CameraDrag:
 	if camera_root:
@@ -484,9 +510,11 @@ func start_monster_battle(player: Player, monster: Monster, from_tile: bool = fa
 	var timer := get_tree().create_timer(1.0)
 	await timer.timeout
 	var results := await _run_monster_battle(player, monster)
-	var player_won := await _process_battle_outcome(results, player, monster)
+	var outcome := await _process_battle_outcome(results, player, monster)
+	var player_won := bool(outcome.get("player_won", false))
+	var player_died := bool(outcome.get("player_died", false))
 	state = GameState.DAY
-	if player_won:
+	if not player_died:
 		_set_player_input_enabled(true)
 		_show_player_ui()
 		if from_tile:
@@ -494,11 +522,12 @@ func start_monster_battle(player: Player, monster: Monster, from_tile: bool = fa
 	else:
 		_clear_active_player()
 	if _turn_state_machine:
-		var combat_result := "lose"
-		if player_won:
-			combat_result = "win"
+		var combat_result := {
+			"result": "win" if player_won else "lose",
+			"player_died": player_died
+		}
 		_turn_state_machine.handle_event("combat_resolved", combat_result)
-		if not player_won:
+		if player_died:
 			_turn_state_machine.handle_event("player_death_animation_finished", player)
 	if from_tile and player:
 		player.consume_tile_combat_request()
@@ -555,15 +584,16 @@ func _build_battle_participant_data(participant) -> Dictionary:
 		}
 	return {"player": participant}
 
-func _process_battle_outcome(results: Array, player: Player, monster: Monster) -> bool:
+func _process_battle_outcome(results: Array, player: Player, monster: Monster) -> Dictionary:
 	var player_roll := _extract_roll_for_participant(results, player)
 	var monster_roll := _extract_roll_for_participant(results, monster)
 	var player_won := player_roll >= monster_roll
+	var player_died := false
 	if player_won:
 		await _handle_monster_defeat(monster)
 	else:
-		await _handle_player_defeat(player)
-	return player_won
+		player_died = await _handle_player_defeat(player)
+	return {"player_won": player_won, "player_died": player_died}
 
 func _extract_roll_for_participant(results: Array, target) -> int:
 	for entry in results:
@@ -584,7 +614,27 @@ func _handle_monster_defeat(monster: Monster) -> void:
 		await animation_player.animation_finished
 	monster.despawn()
 
-func _handle_player_defeat(player: Player) -> void:
+func _handle_player_defeat(player: Player) -> bool:
+	if not player:
+		return false
+	var died := player.take_damage(1)
+	if not died:
+		return false
+	await _process_player_death(player)
+	return true
+
+func handle_trap_player_death(player: Player) -> void:
+	if not player or not _turn_state_machine:
+		return
+	await _process_player_death(player)
+	var payload := {
+		"result": "lose",
+		"player_died": true
+	}
+	_turn_state_machine.handle_event("combat_resolved", payload)
+	_turn_state_machine.handle_event("player_death_animation_finished", player)
+
+func _process_player_death(player: Player) -> void:
 	if not player:
 		return
 	if player.has_method("register_death"):

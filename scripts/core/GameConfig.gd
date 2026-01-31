@@ -13,6 +13,9 @@ const CAMERA_DELAY := 0.05
 const MAX_ACTION_POINTS := 3
 const MIN_ACTION_POINTS := 0
 
+# === Здоровье ===
+const PLAYER_STARTING_HEALTH := 3
+
 # === Тайминги игры ===
 const TURN_SWITCH_DELAY := 2.0
 const NIGHT_DELAY := 2.0

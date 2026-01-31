@@ -11,9 +11,9 @@ enum RoomType {
 
 const ROOM_TYPE_WEIGHTS := [
 	{"type": RoomType.EMPTY, "weight": 0.1},
-	{"type": RoomType.CHEST, "weight": 0.3},
+	{"type": RoomType.CHEST, "weight": 0.1},
 	{"type": RoomType.AMBUSH, "weight": 0.1},
-	{"type": RoomType.MONSTER, "weight": 0.5}
+	{"type": RoomType.MONSTER, "weight": 0.7}
 ]
 
 const ROOM_SCENES := {
@@ -463,9 +463,18 @@ func _trigger_ambush(player: Player) -> void:
 	if not room_content:
 		return
 	player.play_ambush_damage_animation()
-	player.spend_action_point()
+	var died := player.take_damage(1)
 	_clear_room_content()
 	room_type = RoomType.EMPTY
+	if died:
+		_dispatch_trap_death(player)
+
+func _dispatch_trap_death(player: Player) -> void:
+	var gm := _get_game_manager()
+	if not gm:
+		return
+	if gm.has_method("handle_trap_player_death"):
+		gm.handle_trap_player_death(player)
 
 func _clear_room_content() -> void:
 	if room_content and room_content.is_inside_tree():
