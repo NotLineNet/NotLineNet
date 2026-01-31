@@ -1,7 +1,6 @@
 extends Node3D
 class_name Tile
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
-const MarkerUI = preload("res://scripts/ui/MarkerUI.gd")
 
 enum RoomType {
 	EMPTY,
@@ -26,10 +25,6 @@ const ROOM_SCENES := {
 var room_type: int = RoomType.EMPTY
 var room_assigned := false
 var room_content: Node3D
-var _chest_button: Control
-var _chest_marker: Node3D
-var _marker_ui: MarkerUI
-var _chest_button_callable: Callable
 var has_opened := false
 
 enum WallVisual {
@@ -96,8 +91,6 @@ func _ready():
 		var player_pos = Vector2i(round(active_player.global_position.x / half_tile), round(active_player.global_position.z / half_tile))
 		if player_pos == grid_pos:
 			on_player_entered()
-	if not _chest_button_callable:
-		_chest_button_callable = Callable(self, "_on_chest_button_pressed")
 	_ensure_room_content_parent()
 
 func _on_area_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int):
@@ -416,7 +409,6 @@ func _ensure_walls_created() -> void:
 	walls_initialized = true
 
 func hide_tile():
-	_remove_chest_button()
 	if base_room:
 		base_room.visible = false
 	for marker in exit_markers.values():
@@ -456,66 +448,13 @@ func _handle_room_player_entered() -> void:
 		return
 
 	if occupying_monster:
-		var gm := _get_game_manager()
-		if gm and gm.has_method("start_monster_battle"):
-			gm.start_monster_battle(player, occupying_monster, true)
 		return
 
-	match room_type:
-		RoomType.CHEST:
-			_show_chest_button()
-		RoomType.AMBUSH:
-			_trigger_ambush(player)
-		_:
-			pass
+	if room_type == RoomType.AMBUSH:
+		_trigger_ambush(player)
 
 func _handle_room_player_exited() -> void:
-	if room_type == RoomType.CHEST:
-		_remove_chest_button()
-
-func _get_marker_ui() -> MarkerUI:
-	if _marker_ui and is_instance_valid(_marker_ui):
-		return _marker_ui
-	var tree := get_tree()
-	if not tree:
-		return null
-	_marker_ui = tree.get_first_node_in_group("marker_ui") as MarkerUI
-	return _marker_ui
-
-func _register_chest_button() -> void:
-	if room_type != RoomType.CHEST:
-		return
-	if not room_content:
-		return
-	var marker := room_content.get_node_or_null("Marker3D") as Node3D
-	if not marker:
-		return
-	if _chest_marker == marker and _chest_button and is_instance_valid(_chest_button):
-		return
-	var marker_ui := _get_marker_ui()
-	if not marker_ui:
-		return
-	_chest_marker = marker
-	if not _chest_button_callable:
-		_chest_button_callable = Callable(self, "_on_chest_button_pressed")
-	_chest_button = marker_ui.register_chest_marker(marker, _chest_button_callable)
-
-func _show_chest_button() -> void:
-	_register_chest_button()
-
-func _remove_chest_button() -> void:
-	if _marker_ui and is_instance_valid(_marker_ui) and _chest_marker:
-		_marker_ui.unregister_marker(_chest_marker)
-	_chest_button = null
-	_chest_marker = null
-
-func _on_chest_button_pressed() -> void:
-	var player := _get_active_player()
-	if player:
-		player.add_action_point()
-
-	_clear_room_content()
-	room_type = RoomType.EMPTY
+	pass
 
 func _trigger_ambush(player: Player) -> void:
 	if not room_content:
@@ -526,10 +465,15 @@ func _trigger_ambush(player: Player) -> void:
 	room_type = RoomType.EMPTY
 
 func _clear_room_content() -> void:
-	_remove_chest_button()
 	if room_content and room_content.is_inside_tree():
 		room_content.queue_free()
 	room_content = null
+
+func claim_chest() -> void:
+	if room_type != RoomType.CHEST:
+		return
+	_clear_room_content()
+	room_type = RoomType.EMPTY
 
 func _clear_monster() -> void:
 	if occupying_monster:
@@ -562,8 +506,6 @@ func _spawn_room_content() -> void:
 	add_child(instance)
 	room_content = instance
 	_ensure_room_content_parent()
-	if room_type == RoomType.CHEST:
-		_register_chest_button()
 
 func _spawn_monster() -> void:
 	var scene := ROOM_SCENES.get(RoomType.MONSTER, null) as PackedScene

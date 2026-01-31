@@ -6,6 +6,7 @@ const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 
 signal action_points_changed(new_value: int)
 signal moved_to_tile(new_tile: Tile)
+signal movement_started()
 
 const MAX_ACTION_POINTS := GameConfig.MAX_ACTION_POINTS
 const MIN_ACTION_POINTS := GameConfig.MIN_ACTION_POINTS
@@ -149,6 +150,7 @@ func move_to_tile(target_tile: Tile):
 		return
 	
 	is_moving = true
+	emit_signal("movement_started")
 	
 	# Уведомляем текущий тайл, что игрок уходит (меняем цвет на серый)
 	if current_tile:
