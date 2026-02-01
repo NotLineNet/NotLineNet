@@ -8,6 +8,7 @@ var _pending_target_health: int = 0
 var _hp_loss_anim_playing := false
 var _show_animation_playing := false
 var _current_visual_health: int = 0
+var _log_prefix := "PlayerUI"
 
 @onready var hp_container: HBoxContainer = get_node_or_null("PanelRoot/HPContainer") as HBoxContainer
 
@@ -17,15 +18,32 @@ func _ready():
 	if anim:
 		anim.animation_finished.connect(_on_anim_finished)
 	_clear_hp_icons()
+	visibility_changed.connect(_on_visibility_changed)
 
 func show_player_ui():
+	_log("show start")
 	visible = true
 	_show_animation_playing = true
 	if anim:
+		_log("anim Show start")
+		anim.play("PlayerUI_Show")
+
+
+func ensure_shown():
+	# If hide animation is running, stop it and play show cleanly to avoid flicker.
+	_log("ensure_shown")
+	if anim and anim.is_playing() and anim.current_animation == "PlayerUI_Hide":
+		anim.stop()
+	visible = true
+	_show_animation_playing = true
+	if anim:
+		_log("anim Show start (ensure)")
 		anim.play("PlayerUI_Show")
 
 func hide_player_ui():
+	_log("hide start")
 	if anim:
+		_log("anim Hide start")
 		anim.play("PlayerUI_Hide")
 
 func set_health_icons(count: int) -> void:
@@ -101,7 +119,17 @@ func _clear_hp_icons() -> void:
 
 func _on_anim_finished(name: String):
 	if name == "PlayerUI_Hide":
+		_log("anim Hide end")
 		visible = false
 	elif name == "PlayerUI_Show":
+		_log("anim Show end")
 		_show_animation_playing = false
 		_try_play_pending_hp_loss()
+
+
+func _on_visibility_changed() -> void:
+	_log("visible %s" % str(visible))
+
+
+func _log(msg: String) -> void:
+	print("%s: %s" % [_log_prefix, msg])

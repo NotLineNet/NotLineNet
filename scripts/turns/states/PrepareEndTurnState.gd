@@ -15,6 +15,7 @@ func enter(ctx: Dictionary) -> void:
 	fsm.emit_signal("hide_player_ui")
 	fsm.emit_signal("disable_player_input")
 	fsm.call_dep("handle_prepare_end_turn", [player])
+	await fsm.call_dep_await("wait_player_ui_hidden")
 	var awaiting_death: bool = bool(player and player.is_dead)
 	ctx["awaiting_death_animation"] = awaiting_death
 	if not awaiting_death:

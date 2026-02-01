@@ -15,6 +15,8 @@ var _marker_target: Node3D
 var _buttons: Dictionary = {}
 var _tracked_player: Player
 var _player_turn_active := false
+var _battle_mode := false
+var _battle_previous_turn_state := false
 var _moved_callable: Callable
 var _movement_started_callable: Callable
 var _player_ready_after_battle_callable: Callable
@@ -94,6 +96,9 @@ func _on_player_turn_started(player: Player) -> void:
 		_show_room_ui_for_tile(player.current_tile)
 
 func _on_player_turn_finished(_player: Player) -> void:
+	if _battle_mode:
+		exit_battle_mode()
+		return
 	_player_turn_active = false
 	_clear_room_ui()
 	_disconnect_tile_exit()
@@ -105,6 +110,12 @@ func _on_active_player_changed(player: Player) -> void:
 
 func _on_player_moved_to_tile(tile: Tile) -> void:
 	if not _player_turn_active:
+		return
+	if tile and _tile_has_active_monster(tile) and _tracked_player:
+		_clear_room_ui()
+		if _game_manager and _game_manager.has_method("is_battle_active") and not _game_manager.is_battle_active():
+			if _game_manager.has_method("start_monster_battle"):
+				_game_manager.start_monster_battle(_tracked_player, tile.occupying_monster, true)
 		return
 	_update_exit_connection(tile)
 	_show_room_ui_for_tile(tile)
@@ -242,6 +253,10 @@ func _on_monster_fight_pressed() -> void:
 	var monster := _current_tile.occupying_monster
 	if not monster:
 		return
+	if _game_manager and _game_manager.has_method("is_battle_active") and _game_manager.is_battle_active():
+		if _game_manager.has_method("handle_battle_player_choice"):
+			_game_manager.handle_battle_player_choice("fight", _current_tile)
+		return
 	_clear_room_ui()
 	if _game_manager and _game_manager.has_method("start_monster_battle"):
 		_game_manager.start_monster_battle(player, monster, true)
@@ -250,11 +265,18 @@ func _on_monster_run_pressed() -> void:
 	var player := _get_active_player()
 	if not player:
 		return
-	if player.action_points > GameConfig.MIN_ACTION_POINTS:
-		player.spend_action_point()
+	if _game_manager and _game_manager.has_method("is_battle_active") and _game_manager.is_battle_active():
+		if _game_manager.has_method("handle_battle_player_choice"):
+			_game_manager.handle_battle_player_choice("run", _current_tile)
+		return
+	# Running away hurts the player instead of costing action points.
+	player.play_ambush_damage_animation()
+	var died := player.take_damage(1)
 	if _current_tile and _current_tile.has_method("_unlock_exits_for_monster"):
 		_current_tile._unlock_exits_for_monster()
 	_clear_room_ui()
+	if died and _game_manager and _game_manager.has_method("handle_trap_player_death"):
+		await _game_manager.handle_trap_player_death(player)
 
 func _update_exit_connection(tile: Tile) -> void:
 	if _exit_connected_tile == tile:
@@ -310,3 +332,25 @@ func _update_room_ui_position() -> void:
 
 func _is_camera_preset_zero() -> bool:
 	return not _camera_root or _camera_root.zoom_level == 0
+
+
+func enter_battle_mode(player: Player) -> void:
+	_battle_mode = true
+	_battle_previous_turn_state = _player_turn_active
+	_player_turn_active = true
+	_connect_player_signals(player)
+	if player and not player.is_moving:
+		_update_exit_connection(player.current_tile)
+		_show_room_ui_for_tile(player.current_tile)
+
+
+func exit_battle_mode() -> void:
+	if not _battle_mode:
+		return
+	_clear_room_ui()
+	_player_turn_active = _battle_previous_turn_state
+	_battle_mode = false
+
+
+func hide_room_ui() -> void:
+	_clear_room_ui()

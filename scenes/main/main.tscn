@@ -11,6 +11,95 @@
 [ext_resource type="PackedScene" uid="uid://cmwyo7p4h6jyf" path="res://scenes/ui/PlayerUI.tscn" id="6_ow5a4"]
 [ext_resource type="Script" path="res://scripts/ui/RoomUIController.gd" id="8_roomui"]
 
+[sub_resource type="Animation" id="Animation_a8run"]
+resource_name = "EnemyHIT"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Camera3D:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(0.1339719, 1),
+"update": 0,
+"values": [Vector3(0, -1, 3.4), Vector3(0.3, -1, 2.2)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Camera3D:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(0.6155716, 1),
+"update": 0,
+"values": [Vector3(0, 0, 0), Vector3(0, 0.010471975, 0)]
+}
+
+[sub_resource type="Animation" id="Animation_ouso4"]
+resource_name = "PlayerHit"
+length = 0.5
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Camera3D:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(0.1339719, 1),
+"update": 0,
+"values": [Vector3(0, -1, 3.4), Vector3(-0.3, -1, 2.2)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Camera3D:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(0.6155716, 1),
+"update": 0,
+"values": [Vector3(0, 0, 0), Vector3(0, -0.010471975, 0)]
+}
+
+[sub_resource type="Animation" id="Animation_blune"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Camera3D:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector3(0, -1, 3.4)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Camera3D:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector3(0, 0, 0)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_th5th"]
+_data = {
+&"EnemyHIT": SubResource("Animation_a8run"),
+&"PlayerHit": SubResource("Animation_ouso4"),
+&"RESET": SubResource("Animation_blune")
+}
+
 [node name="Main" type="Node3D" unique_id=1681537461]
 
 [node name="GameManager" type="Node3D" parent="." unique_id=1197063685]
@@ -22,6 +111,8 @@ script = ExtResource("1_iuonh")
 tile_scene = ExtResource("2_k2fmo")
 player_scene = ExtResource("3_6q06x")
 circle_radius = 5
+
+[node name="Tile" parent="LevelManager" unique_id=828772496 instance=ExtResource("2_k2fmo")]
 
 [node name="PlayerManager" type="Node3D" parent="." unique_id=961077910]
 script = ExtResource("1_pmy5j")
@@ -81,6 +172,9 @@ zoom_presets = Array[Dictionary]([{
 
 [node name="CameraPivot" type="Node3D" parent="CameraRoot" unique_id=339184911]
 transform = Transform3D(1, 0, 0, 0, 0.83867055, 0.54463905, 0, -0.54463905, 0.83867055, 0, 11.69, 9.945)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="CameraRoot/CameraPivot" unique_id=1477019343]
+libraries/ = SubResource("AnimationLibrary_th5th")
 
 [node name="Camera3D" type="Camera3D" parent="CameraRoot/CameraPivot" unique_id=111027336]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 3.4)
@@ -145,8 +239,6 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -20.0
-offset_right = -20.0
 grow_horizontal = 2
 
 [node name="HBoxContainer" type="HBoxContainer" parent="UI/MainHUD/Portraits" unique_id=986611594]

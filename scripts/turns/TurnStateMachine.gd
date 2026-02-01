@@ -49,6 +49,7 @@ func set_dependencies(deps: Dictionary) -> void:
 	# - can_player_act_again: Callable(player) -> bool
 	# - get_next_player: Callable(player) -> Player|Nil
 	# - set_active_player: Callable(player) -> void
+	# - wait_player_ui_hidden: Callable() -> awaitable void
 	_deps = deps
 
 
@@ -119,4 +120,14 @@ func call_dep(key: String, args: Array = []) -> Variant:
 	var callable: Callable = _deps.get(key)
 	if callable and callable.is_valid():
 		return callable.callv(args)
+	return null
+
+
+func call_dep_await(key: String, args: Array = []) -> Variant:
+	if not _deps.has(key):
+		return null
+	var callable: Callable = _deps.get(key)
+	if callable and callable.is_valid():
+		var result = callable.callv(args)
+		return await result
 	return null

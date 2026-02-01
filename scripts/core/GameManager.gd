@@ -13,6 +13,8 @@ const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 const DiceGameUI = preload("res://scripts/ui/DiceGameUI.gd")
 const MonsterManager = preload("res://scripts/core/MonsterManager.gd")
 const TurnStateMachine = preload("res://scripts/turns/TurnStateMachine.gd")
+const BattleStateMachine = preload("res://scripts/battle/BattleStateMachine.gd")
+const BATTLE_UI_SCENE_PATH := "res://scenes/ui/BattleUI.tscn"
 enum GameState { INIT, INTRO, DRAW_LOTS, DAY, BATTLE, SWITCHING_TURN, NIGHT, WAITING_NEW_DAY }
 const INTRO_SCENE_PATH := "res://scenes/ui/IntroCutScene.tscn"
 const DICE_GAME_UI_SCENE_PATH := "res://scenes/ui/DiceGameUI.tscn"
@@ -20,6 +22,7 @@ const DICE_GAME_UI_SCENE_PATH := "res://scenes/ui/DiceGameUI.tscn"
 @export var total_players: int = 3
 @export var intro_scene: PackedScene = preload(INTRO_SCENE_PATH)
 @export var dice_game_ui_scene: PackedScene = preload(DICE_GAME_UI_SCENE_PATH)
+@export var battle_ui_scene: PackedScene = preload(BATTLE_UI_SCENE_PATH)
 
 var current_game_day: int = 1
 var players: Array[Player] = []
@@ -30,7 +33,12 @@ var _intro_started := false
 var _intro_completed := false
 var state: GameState = GameState.INIT
 var _dice_ui_instance
+var _battle_ui_instance
 var _turn_state_machine: TurnStateMachine
+var _battle_state_machine: BattleStateMachine
+var _battle_in_progress := false
+var _battle_ctx: Dictionary = {}
+var _battle_choice_tile: Tile
 
 @onready var player_ui := get_node_or_null("../UI/PlayerUI")
 @onready var hud_ui := get_node_or_null("../UI/HUD(cheats)")
@@ -42,6 +50,7 @@ var _turn_state_machine: TurnStateMachine
 @onready var camera_root: CameraDrag = get_node_or_null("../CameraRoot") as CameraDrag
 @onready var camera_pivot: Node3D = camera_root.get_node_or_null("CameraPivot") if camera_root else null
 @onready var main_camera: Camera3D = camera_pivot.get_node_or_null("Camera3D") if camera_pivot else null
+@onready var room_ui_controller: Node = get_node_or_null("../UI/RoomUIController")
 
 func _ready() -> void:
 	add_to_group("game_manager")
@@ -49,6 +58,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_prepare_initial_ui_state()
 	_init_turn_state_machine()
+	_init_battle_state_machine()
 
 
 func _init_turn_state_machine() -> void:
@@ -62,7 +72,8 @@ func _init_turn_state_machine() -> void:
 		"can_player_act_again": Callable(self, "_can_player_act_again"),
 		"get_next_player": Callable(self, "_get_next_player"),
 		"set_active_player": Callable(self, "set_active_player"),
-		"handle_prepare_end_turn": Callable(self, "_handle_prepare_end_turn")
+		"handle_prepare_end_turn": Callable(self, "_handle_prepare_end_turn"),
+		"wait_player_ui_hidden": Callable(self, "_wait_player_ui_hidden")
 	})
 	_turn_state_machine.connect("request_camera_center", Callable(self, "_on_turn_request_camera_center"))
 	_turn_state_machine.connect("show_player_ui", Callable(self, "_on_turn_show_player_ui"))
@@ -72,6 +83,32 @@ func _init_turn_state_machine() -> void:
 	_turn_state_machine.connect("start_combat", Callable(self, "_on_turn_start_combat"))
 	_turn_state_machine.connect("state_changed", Callable(self, "_on_turn_state_changed"))
 	_turn_state_machine.connect("turns_completed", Callable(self, "_on_turns_completed"))
+
+
+func _init_battle_state_machine() -> void:
+	if _battle_state_machine:
+		return
+	_battle_state_machine = BattleStateMachine.new()
+	add_child(_battle_state_machine)
+	_battle_state_machine.set_dependencies({
+		"show_battle_ui": Callable(self, "_dep_show_battle_ui"),
+		"hide_battle_ui": Callable(self, "_dep_hide_battle_ui"),
+		"hide_player_ui": Callable(self, "_hide_player_ui"),
+		"show_player_ui": Callable(self, "_show_player_ui"),
+		"enter_battle_room_ui": Callable(self, "_dep_enter_battle_room_ui"),
+		"exit_battle_room_ui": Callable(self, "_dep_exit_battle_room_ui"),
+		"disable_player_input": Callable(self, "_dep_disable_player_input"),
+		"enable_player_input": Callable(self, "_dep_enable_player_input"),
+		"play_camera_hit": Callable(self, "_dep_play_camera_hit"),
+		"run_dice_game": Callable(self, "_dep_run_dice_game"),
+		"apply_player_damage": Callable(self, "_dep_apply_player_damage"),
+		"apply_run_penalty": Callable(self, "_apply_run_away_penalty"),
+		"handle_monster_death": Callable(self, "_handle_monster_defeat"),
+		"handle_player_death": Callable(self, "_process_player_death"),
+		"finalize_battle": Callable(self, "_dep_finalize_battle")
+	})
+	_battle_state_machine.connect("state_changed", Callable(self, "_on_battle_state_changed"))
+	_battle_state_machine.connect("battle_finished", Callable(self, "_on_battle_finished"))
 
 func _prepare_initial_ui_state() -> void:
 	if ui_layer:
@@ -84,6 +121,18 @@ func _prepare_initial_ui_state() -> void:
 
 func _log_state(label: String) -> void:
 	print("Game state: %s" % label)
+
+
+func _log_battle_state(label: String) -> void:
+	print("CurrentBattleState: %s" % label)
+
+
+func _on_battle_state_changed(label: String, _ctx: Dictionary) -> void:
+	_log_battle_state(label)
+
+
+func _on_battle_finished(result_ctx: Dictionary) -> void:
+	await _finish_battle(result_ctx)
 
 # Turn state machine helpers --------------------------------------------------
 
@@ -405,13 +454,28 @@ func _show_player_ui() -> void:
 		player_ui = get_node_or_null("../UI/PlayerUI")
 	_refresh_player_display()
 	if player_ui:
-		player_ui.show_player_ui()
+		var should_ensure := false
+		if player_ui.has_method("get_animation_player"):
+			var ap = player_ui.call("get_animation_player")
+			if ap and ap.has_method("is_playing") and ap.is_playing() and ap.current_animation == "PlayerUI_Hide":
+				should_ensure = true
+		if player_ui.visible and not should_ensure:
+			return
+		if player_ui.has_method("ensure_shown"):
+			player_ui.ensure_shown()
+		else:
+			player_ui.show_player_ui()
 
 func _hide_player_ui() -> void:
 	if not player_ui:
 		player_ui = get_node_or_null("../UI/PlayerUI")
 	if player_ui:
 		player_ui.hide_player_ui()
+
+
+func _hide_room_ui() -> void:
+	if room_ui_controller and room_ui_controller.has_method("hide_room_ui"):
+		room_ui_controller.call("hide_room_ui")
 
 func _update_day_label() -> void:
 	if not hud_ui:
@@ -495,31 +559,118 @@ func start_monster_battle(player: Player, monster: Monster, from_tile: bool = fa
 	print("Битва с монстром")
 	if not player or not monster:
 		return
-	if state == GameState.BATTLE:
+	if _battle_in_progress or state == GameState.BATTLE:
 		return
 	if state != GameState.DAY and state != GameState.SWITCHING_TURN:
 		return
 	if from_tile and player:
 		player.mark_tile_combat_requested()
-	_log_state("бой")
+	_battle_ctx = {
+		"player": player,
+		"monster": monster,
+		"from_tile": from_tile,
+		"battle_type": "Обычный" if from_tile else "Внезапный",
+		"player_roll": 0,
+		"monster_roll": 0,
+		"player_won_round": false,
+		"player_died": false,
+		"monster_defeated": false,
+		"player_ran": false
+	}
+	_battle_choice_tile = player.current_tile
+	_battle_in_progress = true
 	state = GameState.BATTLE
-	_hide_player_ui()
-	_ensure_camera_nodes()
-	if camera_root:
-		camera_root.set_input_enabled(false)
-	var timer := get_tree().create_timer(1.0)
-	await timer.timeout
-	var results := await _run_monster_battle(player, monster)
-	var outcome := await _process_battle_outcome(results, player, monster)
-	var player_won := bool(outcome.get("player_won", false))
-	var player_died := bool(outcome.get("player_died", false))
-	state = GameState.DAY
-	if not player_died:
-		_set_player_input_enabled(true)
-		_show_player_ui()
-		if from_tile:
-			emit_signal("player_ready_after_battle", player)
+	print("BattleType: %s" % _battle_ctx.get("battle_type", ""))
+	if _battle_state_machine:
+		await _battle_state_machine.start(_battle_ctx)
 	else:
+		_finish_battle(_battle_ctx)
+
+
+func is_battle_active() -> bool:
+	return _battle_in_progress
+
+
+func handle_battle_player_choice(choice: String, tile: Tile = null) -> void:
+	if not _battle_in_progress or not _battle_state_machine:
+		return
+	_battle_choice_tile = tile if tile else _battle_choice_tile
+	_battle_state_machine.handle_event("player_choice", {"choice": choice, "tile": _battle_choice_tile})
+
+
+func _dep_show_battle_ui(battle_type: String) -> void:
+	_hide_room_ui()
+	_ensure_camera_nodes()
+	await _wait_for_camera_centering_done()
+	if camera_root:
+		camera_root.set_follow_enabled(false)
+	_set_player_input_enabled(false)
+	await _show_battle_ui()
+
+
+func _dep_hide_battle_ui() -> void:
+	await _hide_battle_ui()
+
+
+func _dep_enter_battle_room_ui(player: Player) -> void:
+	if room_ui_controller and room_ui_controller.has_method("enter_battle_mode"):
+		room_ui_controller.call("enter_battle_mode", player)
+
+
+func _dep_exit_battle_room_ui() -> void:
+	if room_ui_controller:
+		if room_ui_controller.has_method("exit_battle_mode"):
+			room_ui_controller.call("exit_battle_mode")
+		if room_ui_controller.has_method("hide_room_ui"):
+			room_ui_controller.call("hide_room_ui")
+
+
+func _dep_disable_player_input() -> void:
+	_set_player_input_enabled(false)
+
+
+func _dep_enable_player_input(player: Player) -> void:
+	_set_player_input_enabled(true)
+
+
+func _dep_play_camera_hit(player_won: bool) -> void:
+	await _play_camera_hit_animation(player_won)
+
+
+func _dep_run_dice_game(player: Player, monster: Monster) -> Array:
+	return await _run_monster_battle(player, monster)
+
+
+func _dep_apply_player_damage(player: Player, amount: int) -> bool:
+	if not player:
+		return false
+	return player.take_damage(amount)
+
+
+func _dep_finalize_battle(result_ctx: Dictionary) -> void:
+	_battle_ctx = result_ctx.duplicate(true)
+
+
+func _finish_battle(result_ctx: Dictionary) -> void:
+	var player: Player = result_ctx.get("player")
+	var player_died := bool(result_ctx.get("player_died", false))
+	var monster_defeated := bool(result_ctx.get("monster_defeated", false))
+	var player_won := monster_defeated and not player_died
+	state = GameState.DAY
+	if camera_root:
+		camera_root.set_follow_enabled(true)
+	if player_died:
+		_hide_player_ui()
+		await _wait_player_ui_hidden()
+	else:
+		_set_player_input_enabled(true)
+		if monster_defeated:
+			_show_player_ui()
+		if player:
+			_battle_choice_tile = player.current_tile
+		if player and (result_ctx.get("from_tile", false)) and monster_defeated:
+			emit_signal("player_ready_after_battle", player)
+	if player_died:
 		_clear_active_player()
 	if _turn_state_machine:
 		var combat_result := {
@@ -529,8 +680,98 @@ func start_monster_battle(player: Player, monster: Monster, from_tile: bool = fa
 		_turn_state_machine.handle_event("combat_resolved", combat_result)
 		if player_died:
 			_turn_state_machine.handle_event("player_death_animation_finished", player)
-	if from_tile and player:
+	if result_ctx.get("from_tile", false) and player:
 		player.consume_tile_combat_request()
+	_battle_in_progress = false
+	_battle_ctx.clear()
+	_battle_choice_tile = null
+
+
+func _show_battle_ui() -> void:
+	if _battle_ui_instance:
+		return
+	var scene_to_use := battle_ui_scene
+	if not scene_to_use:
+		scene_to_use = preload(BATTLE_UI_SCENE_PATH)
+	if not scene_to_use:
+		return
+	var instance := scene_to_use.instantiate()
+	if not instance:
+		return
+	_battle_ui_instance = instance
+	var parent_node: Node = ui_layer if ui_layer else self
+	parent_node.add_child(instance)
+	var anim_player := instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if anim_player and anim_player.has_animation("RESET"):
+		anim_player.play("RESET")
+	await _play_animation_safe(anim_player, "BattleShow")
+
+
+func _hide_battle_ui() -> void:
+	if not _battle_ui_instance:
+		return
+	var anim_player := _battle_ui_instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	await _play_animation_safe(anim_player, "BattleHide")
+	_battle_ui_instance.queue_free()
+	_battle_ui_instance = null
+
+
+func _play_animation_safe(anim_player: AnimationPlayer, anim_name: String) -> void:
+	if not anim_player:
+		return
+	if not anim_player.has_animation(anim_name):
+		return
+	anim_player.play(anim_name)
+	await anim_player.animation_finished
+
+
+func _play_camera_hit_animation(player_won: bool) -> void:
+	_ensure_camera_nodes()
+	if not camera_pivot:
+		return
+	var anim_player := camera_pivot.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if not anim_player:
+		return
+	var anim_name := "PlayerHit" if player_won else "EnemyHIT"
+	if anim_player.has_animation(anim_name):
+		anim_player.play(anim_name)
+		await anim_player.animation_finished
+	if anim_player.has_animation("RESET"):
+		anim_player.play("RESET")
+
+
+func _apply_run_away_penalty(player: Player, tile: Tile) -> bool:
+	if not player:
+		return false
+	player.play_ambush_damage_animation()
+	var died := player.take_damage(1)
+	if tile and tile.has_method("_unlock_exits_for_monster"):
+		tile._unlock_exits_for_monster()
+	return died
+
+
+func _wait_for_camera_centering_done() -> void:
+	if not camera_root:
+		return
+	var guard := 0
+	while camera_root.is_centering_on_tile:
+		await get_tree().process_frame
+		guard += 1
+		if guard > 120: # ~2 секунды при 60 fps, чтобы не зависнуть
+			break
+
+
+func _wait_player_ui_hidden() -> void:
+	if not player_ui:
+		player_ui = get_node_or_null("../UI/PlayerUI")
+	if not player_ui:
+		return
+	var guard := 0
+	while player_ui.visible:
+		await get_tree().process_frame
+		guard += 1
+		if guard > 120: # ~2 секунды при 60 fps
+			break
 
 func _run_monster_battle(player: Player, monster: Monster) -> Array:
 	var participants_data: Array = []
@@ -547,6 +788,7 @@ func _run_monster_battle(player: Player, monster: Monster) -> Array:
 	var results: Array = []
 	if ui_instance.has_method("run_battle"):
 		results = await ui_instance.run_battle(participants_data)
+		_dice_ui_instance = null
 	else:
 		results = _generate_rolls_from_data(participants_data)
 	_dice_ui_instance = null
@@ -604,7 +846,7 @@ func _extract_roll_for_participant(results: Array, target) -> int:
 	return 0
 
 func _handle_monster_defeat(monster: Monster) -> void:
-	if not monster:
+	if not monster or not is_instance_valid(monster):
 		return
 	if monster.has_method("register_death"):
 		monster.register_death()
@@ -635,7 +877,7 @@ func handle_trap_player_death(player: Player) -> void:
 	_turn_state_machine.handle_event("player_death_animation_finished", player)
 
 func _process_player_death(player: Player) -> void:
-	if not player:
+	if not player or not is_instance_valid(player):
 		return
 	if player.has_method("register_death"):
 		player.register_death()
@@ -755,6 +997,7 @@ func _start_day_cycle(increment_day: bool) -> void:
 	if players.size() > 0:
 		set_active_player(players[0])
 		_show_core_ui()
+		_hide_player_ui()
 		# FSM самостоятельно подготовит игрока и камеры.
 		if _turn_state_machine and active_player:
 			_turn_state_machine.start_for_player(active_player)
