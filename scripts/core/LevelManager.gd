@@ -67,6 +67,7 @@ func create_grid():
 		if green_tile:
 			green_tile.set_color(Color.GREEN)
 			green_tile.force_empty_room()
+			green_tile.forbid_locked_exits = true
 		_build_circle_layer(green_pos, green_circle_radius)
 
 	var connection_map: Dictionary = _finalize_connections(green_exit_targets)

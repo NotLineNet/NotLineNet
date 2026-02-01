@@ -27,6 +27,7 @@ var room_assigned := false
 var room_content: Node3D
 var has_opened := false
 var _exits_locked_due_to_monster := false
+var forbid_locked_exits := false
 
 enum WallVisual {
 	BLOCKED,
@@ -288,11 +289,22 @@ func _propagate_to_neighbor(dir: Vector2i, visual: int, owner: Tile) -> void:
 	var neighbor := level_manager.tiles[neighbor_pos] as Tile
 	neighbor._assign_wall_visual(-dir, visual, owner, false)
 
-func _determine_visual_for_exit() -> int:
-	var locked: float = clamp(locked_wall_chance, 0.0, 1.0)
+func _should_forbid_locked_walls(dir: Vector2i) -> bool:
+	if forbid_locked_exits:
+		return true
+	var level_manager := _get_level_manager()
+	if not level_manager:
+		return false
+	var neighbor_pos: Vector2i = grid_pos + dir
+	var neighbor := level_manager.tiles.get(neighbor_pos, null) as Tile
+	return neighbor != null and neighbor.forbid_locked_exits
+
+func _determine_visual_for_exit(dir: Vector2i) -> int:
+	var locked_allowed := not _should_forbid_locked_walls(dir)
+	var locked: float = clamp(locked_wall_chance, 0.0, 1.0) if locked_allowed else 0.0
 	var door: float = clamp(door_wall_chance, 0.0, max(0.0, 1.0 - locked))
 	var roll: float = randf()
-	if roll < locked:
+	if locked_allowed and roll < locked:
 		return WallVisual.LOCKED_DOOR
 	if roll < locked + door:
 		return WallVisual.DOOR
@@ -391,7 +403,7 @@ func _ensure_walls_created() -> void:
 		if visual == UNSET_WALL_VISUAL:
 			var has_exit := exits.has(dir)
 			if has_exit:
-				visual = _determine_visual_for_exit()
+				visual = _determine_visual_for_exit(dir)
 			else:
 				visual = WallVisual.BLOCKED
 			var assigned_owner: Tile = self

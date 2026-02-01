@@ -601,10 +601,11 @@ func handle_battle_player_choice(choice: String, tile: Tile = null) -> void:
 func _dep_show_battle_ui(battle_type: String) -> void:
 	_hide_room_ui()
 	_ensure_camera_nodes()
-	await _wait_for_camera_centering_done()
-	if camera_root:
-		camera_root.set_follow_enabled(false)
+	# Не ждём завершения центрирования — бой может стартовать сразу,
+	# камера доедет сама.
 	_set_player_input_enabled(false)
+	if camera_root:
+		camera_root.set_input_enabled(false)
 	await _show_battle_ui()
 
 
