@@ -12,6 +12,7 @@ var _log_prefix := "PlayerUI"
 
 @onready var hp_container: HBoxContainer = get_node_or_null("PanelRoot/HPContainer") as HBoxContainer
 @onready var level_label: Label = get_node_or_null("PanelRoot/LVLContainer/LVLLabel") as Label
+@onready var hand_ui: HandUI = get_node_or_null("PanelRoot/HandUI") as HandUI
 
 func get_animation_player() -> AnimationPlayer:
 	return anim
@@ -149,3 +150,12 @@ func set_level(value: int) -> void:
 	if not level_label:
 		return
 	level_label.text = str(value)
+
+
+func get_hand_ui() -> HandUI:
+	return hand_ui
+
+
+func add_card_to_hand(card_data = null, animated := true) -> void:
+	if hand_ui:
+		hand_ui.add_card(card_data, animated)

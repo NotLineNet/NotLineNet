@@ -6,6 +6,7 @@ extends PanelContainer
 @onready var player_ui_action_points: HBoxContainer = $"../PlayerUI/PanelRoot/ActionPoints"
 @onready var button_finish: Button = $"../PlayerUI/PanelRoot/ButtonFinish"
 @onready var player_ui := $"../PlayerUI"
+@onready var add_card_button: Button = $HBoxContainer/AddCardButton
 @onready var game_manager: GameManager = get_node_or_null("../../GameManager") as GameManager
 @onready var day_label: Label = $HBoxContainer/DayLabel
 
@@ -24,6 +25,8 @@ func _ready():
 	if button_finish:
 		button_finish.visible = false
 		button_finish.pressed.connect(_on_button_finish_pressed)
+	if add_card_button:
+		add_card_button.pressed.connect(_on_add_card_button_pressed)
 	_setup_game_manager_connections()
 
 func _on_gameplay_started() -> void:
@@ -134,6 +137,16 @@ func _on_reload_button_pressed() -> void:
 func _on_button_finish_pressed() -> void:
 	if game_manager:
 		game_manager.request_player_finish_turn()
+
+
+func _on_add_card_button_pressed() -> void:
+	if not player_ui:
+		return
+	var hand: HandUI = player_ui.get_hand_ui()
+	if not hand:
+		return
+	var card_data := {"cost": 1}
+	hand.add_card(card_data, true)
 
 func _on_start_button_pressed() -> void:
 	if game_manager:

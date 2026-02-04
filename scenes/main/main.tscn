@@ -223,6 +223,10 @@ layout_mode = 2
 text = "День 1
 "
 
+[node name="AddCardButton" type="Button" parent="UI/HUD(cheats)/HBoxContainer" unique_id=1576140273]
+layout_mode = 2
+text = "+card"
+
 [node name="StartButton" type="Button" parent="UI/HUD(cheats)/HBoxContainer" unique_id=1955715443]
 visible = false
 layout_mode = 2
@@ -257,3 +261,4 @@ offset_top = -120.70502
 script = ExtResource("8_roomui")
 
 [connection signal="pressed" from="UI/HUD(cheats)/HBoxContainer/ODButton" to="UI/HUD(cheats)" method="_on_od_button_pressed"]
+[connection signal="pressed" from="UI/HUD(cheats)/HBoxContainer/AddCardButton" to="UI/HUD(cheats)" method="_on_add_card_button_pressed"]

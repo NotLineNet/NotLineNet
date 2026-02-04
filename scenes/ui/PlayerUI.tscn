@@ -2,6 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://dvkaj2qyjh086" path="res://image/hero_icon_1.png" id="1_lv2tr"]
 [ext_resource type="Script" uid="uid://bymx7rn3u51ry" path="res://scripts/ui/PlayerUI.gd" id="1_v5h85"]
+[ext_resource type="PackedScene" path="res://scenes/ui/HandUI.tscn" id="3_1f1if"]
 
 [sub_resource type="Animation" id="Animation_32b3b"]
 resource_name = "PlayerUI_Hide"
@@ -229,3 +230,32 @@ text = "1"
 label_settings = SubResource("LabelSettings_v5h85")
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="HandUI" parent="PanelRoot" unique_id=1815063043 node_paths=PackedStringArray("play_zone") instance=ExtResource("3_1f1if")]
+layout_mode = 1
+play_zone = NodePath("../../PlayZone")
+
+[node name="PlayZone" type="Control" parent="." unique_id=1298553277]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -500.0
+offset_top = -760.3525
+offset_right = 500.0
+offset_bottom = -360.35263
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="ColorRect" type="ColorRect" parent="PlayZone" unique_id=545314293]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 0, 1, 0.047058824)
