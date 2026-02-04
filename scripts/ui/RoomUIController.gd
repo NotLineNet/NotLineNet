@@ -192,7 +192,8 @@ func _update_room_ui_buttons() -> void:
 	match _current_tile.room_type:
 		Tile.RoomType.CHEST:
 			_set_button_state("ChestButton", true)
-			_set_button_state("RoomExplore", _has_action_points(player))
+			var can_explore := _has_action_points(player) and not _is_button_active("ChestButton")
+			_set_button_state("RoomExplore", can_explore)
 		Tile.RoomType.EMPTY:
 			_set_button_state("RoomExplore", _has_action_points(player))
 	if _current_tile.room_type == Tile.RoomType.AMBUSH and _current_tile.ambush_ready_to_disarm and player and player.action_points > GameConfig.MIN_ACTION_POINTS:
@@ -213,6 +214,10 @@ func _set_button_state(name: String, show: bool) -> void:
 
 func _has_action_points(player: Player) -> bool:
 	return player and player.action_points > GameConfig.MIN_ACTION_POINTS
+
+func _is_button_active(name: String) -> bool:
+	var button := _buttons.get(name, null) as Button
+	return button and button.visible and not button.disabled
 
 func _tile_has_active_monster(tile: Tile) -> bool:
 	if not tile:
