@@ -9,9 +9,7 @@ var player
 var roll_value: int = 0
 var _pending_icon_texture: Texture2D
 var _pending_icon_name: String = ""
-var _bonus_node: Control
-var _bonus_anim_player: AnimationPlayer
-var _bonus_label: Label
+var _bonus_entries: Array[Dictionary] = []
 
 @onready var player_icon: Sprite2D = get_node_or_null("Portrait/PlayerIcon") as Sprite2D
 @onready var dice_label: Label = get_node_or_null("Dice/DiceCounter/Label") as Label
@@ -24,7 +22,7 @@ func setup(data: Dictionary) -> void:
 	_pending_icon_texture = icon_texture
 	_pending_icon_name = icon_name
 	_apply_icon_texture()
-	_prepare_bonus()
+	_prepare_bonus(data)
 
 func _apply_icon_texture() -> void:
 	if not player_icon:
@@ -44,23 +42,38 @@ func roll_and_wait() -> Dictionary:
 	roll_value = randi_range(1, 6)
 	if dice_label:
 		dice_label.text = str(roll_value)
-	_update_bonus_label(roll_value)
+	_update_bonus_label(roll_value, BONUS_TYPE_DICE)
 	await _play_bonus_animation()
 	return {"player": player, "roll": roll_value}
 
-func _prepare_bonus() -> void:
+func _prepare_bonus(data: Dictionary) -> void:
 	_clear_bonus()
 	if not bonuses_container:
 		return
-	var bonus_scene := DICER_BONUS_SCENE.instantiate() as Control
-	if not bonus_scene:
-		return
-	bonuses_container.add_child(bonus_scene)
-	_bonus_node = bonus_scene
-	_bonus_anim_player = bonus_scene.get_node_or_null("AnimationPlayer") as AnimationPlayer
-	_bonus_label = bonus_scene.get_node_or_null("Bonus/BonusValue/Label") as Label
-	_update_bonus_label(0)
-	_apply_bonus_icon(bonus_scene, BONUS_TYPE_DICE)
+	var bonus_list: Array = data.get("bonuses", [])
+	for bonus_info in bonus_list:
+		if not (bonus_info is Dictionary):
+			continue
+		var bonus_type := str(bonus_info.get("type", ""))
+		if bonus_type == "":
+			continue
+		var bonus_scene: Control = DICER_BONUS_SCENE.instantiate() as Control
+		if not bonus_scene:
+			continue
+		bonuses_container.add_child(bonus_scene)
+		var anim_player := bonus_scene.get_node_or_null("AnimationPlayer") as AnimationPlayer
+		var label := bonus_scene.get_node_or_null("Bonus/BonusValue/Label") as Label
+		var entry: Dictionary = {
+			"type": bonus_type,
+			"node": bonus_scene,
+			"label": label,
+			"anim": anim_player
+		}
+		_bonus_entries.append(entry)
+		var value := int(bonus_info.get("value", 0))
+		if label:
+			label.text = str(value)
+		_apply_bonus_icon(bonus_scene, bonus_type)
 
 func _apply_bonus_icon(bonus_scene: Control, bonus_type: String) -> void:
 	var icon := bonus_scene.get_node_or_null("Bonus/BonusIcon") as Sprite2D
@@ -88,21 +101,27 @@ func _load_bonus_icon(bonus_scene: Control, bonus_type: String) -> Texture2D:
 	return null
 
 func _clear_bonus() -> void:
-	if _bonus_node and is_instance_valid(_bonus_node):
-		_bonus_node.queue_free()
-	_bonus_node = null
-	_bonus_anim_player = null
-	_bonus_label = null
+	for entry in _bonus_entries:
+		var node: Control = entry.get("node") as Control
+		if node and is_instance_valid(node):
+			node.queue_free()
+	_bonus_entries.clear()
 
-func _update_bonus_label(value: int) -> void:
-	if not _bonus_label:
+func _update_bonus_label(value: int, bonus_type: String) -> void:
+	for entry in _bonus_entries:
+		if entry.get("type") != bonus_type:
+			continue
+		var label := entry.get("label") as Label
+		if label:
+			label.text = str(value)
 		return
-	_bonus_label.text = str(value)
 
 func _play_bonus_animation() -> void:
-	if not _bonus_anim_player:
-		return
-	if not _bonus_anim_player.has_animation("BonusShow"):
-		return
-	_bonus_anim_player.play("BonusShow")
-	await _bonus_anim_player.animation_finished
+	for entry in _bonus_entries:
+		var anim_player := entry.get("anim") as AnimationPlayer
+		if not anim_player:
+			continue
+		if not anim_player.has_animation("BonusShow"):
+			continue
+		anim_player.play("BonusShow")
+		await anim_player.animation_finished

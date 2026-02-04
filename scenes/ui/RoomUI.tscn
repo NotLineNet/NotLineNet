@@ -49,3 +49,7 @@ text = "Бежать"
 [node name="RoomExplore" type="Button" parent="ButtonsRoot/VBoxContainer" unique_id=363928063]
 layout_mode = 2
 text = "Обыскать"
+
+[node name="AmbushDisarm" type="Button" parent="ButtonsRoot/VBoxContainer" unique_id=2145902065]
+layout_mode = 2
+text = "Обезвредить"

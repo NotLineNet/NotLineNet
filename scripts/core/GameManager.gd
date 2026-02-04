@@ -19,6 +19,8 @@ const BATTLE_UI_SCENE_PATH := "res://scenes/ui/BattleUI.tscn"
 enum GameState { INIT, INTRO, DRAW_LOTS, DAY, BATTLE, SWITCHING_TURN, NIGHT, WAITING_NEW_DAY }
 const INTRO_SCENE_PATH := "res://scenes/ui/IntroCutScene.tscn"
 const DICE_GAME_UI_SCENE_PATH := "res://scenes/ui/DiceGameUI.tscn"
+const BONUS_TYPE_DICE := "Dice"
+const BONUS_TYPE_LVL := "LVL"
 
 @export var total_players: int = 3
 @export var intro_scene: PackedScene = preload(INTRO_SCENE_PATH)
@@ -560,17 +562,18 @@ func _run_dice_lottery() -> Array:
 	if players_data.size() == 0:
 		return []
 	if not dice_game_ui_scene:
-		return _generate_rolls_from_data(players_data)
+		return _generate_rolls_from_data(players_data, false)
 	var ui_instance := dice_game_ui_scene.instantiate()
 	if not ui_instance:
-		return _generate_rolls_from_data(players_data)
+		return _generate_rolls_from_data(players_data, false)
 	_dice_ui_instance = ui_instance
 	var parent_node: Node = ui_layer if ui_layer else self
 	parent_node.add_child(ui_instance)
 	var results: Array = await ui_instance.run_lottery(players_data)
+	_apply_master_bonus(results, false)
 	_dice_ui_instance = null
 	if results.size() == 0:
-		return _generate_rolls_from_data(players_data)
+		return _generate_rolls_from_data(players_data, false)
 	return results
 
 func start_monster_battle(player: Player, monster: Monster, from_tile: bool = false) -> void:
@@ -801,22 +804,23 @@ func _run_monster_battle(player: Player, monster: Monster) -> Array:
 	participants_data.append(_build_battle_participant_data(player))
 	participants_data.append(_build_battle_participant_data(monster))
 	if not dice_game_ui_scene:
-		return _generate_rolls_from_data(participants_data)
+		return _generate_rolls_from_data(participants_data, true)
 	var ui_instance := dice_game_ui_scene.instantiate()
 	if not ui_instance:
-		return _generate_rolls_from_data(participants_data)
+		return _generate_rolls_from_data(participants_data, true)
 	_dice_ui_instance = ui_instance
 	var parent_node: Node = ui_layer if ui_layer else self
 	parent_node.add_child(ui_instance)
 	var results: Array = []
 	if ui_instance.has_method("run_battle"):
 		results = await ui_instance.run_battle(participants_data)
+		_apply_master_bonus(results, true)
 		_dice_ui_instance = null
 	else:
-		results = _generate_rolls_from_data(participants_data)
+		results = _generate_rolls_from_data(participants_data, true)
 	_dice_ui_instance = null
 	if results.size() == 0:
-		return _generate_rolls_from_data(participants_data)
+		return _generate_rolls_from_data(participants_data, true)
 	return results
 
 func _build_battle_participant_data(participant) -> Dictionary:
@@ -831,7 +835,8 @@ func _build_battle_participant_data(participant) -> Dictionary:
 		return {
 			"player": participant,
 			"icon_texture": icon_texture,
-			"icon_name": icon_name
+			"icon_name": icon_name,
+			"bonuses": _bonus_config(true, participant)
 		}
 	if participant is Monster:
 		var params: Dictionary = monster_manager.get_default_view_params() if monster_manager else {}
@@ -845,14 +850,37 @@ func _build_battle_participant_data(participant) -> Dictionary:
 		return {
 			"player": participant,
 			"icon_texture": icon_texture,
-			"icon_name": icon_name
+			"icon_name": icon_name,
+			"bonuses": _bonus_config(true, participant)
 		}
 	return {"player": participant}
+
+func _level_for_participant(participant) -> int:
+	if not participant:
+		return 0
+	if participant is Player or participant is Monster:
+		return int(participant.level)
+	return 0
+
+func _bonus_config(include_level: bool, participant) -> Array:
+	var config: Array = []
+	config.append({
+		"type": BONUS_TYPE_DICE,
+		"value": 0
+	})
+	if include_level:
+		config.append({
+			"type": BONUS_TYPE_LVL,
+			"value": _level_for_participant(participant)
+		})
+	return config
 
 func _process_battle_outcome(results: Array, player: Player, monster: Monster) -> Dictionary:
 	var player_roll := _extract_roll_for_participant(results, player)
 	var monster_roll := _extract_roll_for_participant(results, monster)
-	var player_won := player_roll >= monster_roll
+	var player_master := _extract_master_bonus_for_participant(results, player)
+	var monster_master := _extract_master_bonus_for_participant(results, monster)
+	var player_won := player_master >= monster_master
 	var player_died := false
 	if player_won:
 		await _handle_monster_defeat(monster)
@@ -866,6 +894,14 @@ func _extract_roll_for_participant(results: Array, target) -> int:
 			continue
 		if entry.get("player") == target:
 			return int(entry.get("roll", 0))
+	return 0
+
+func _extract_master_bonus_for_participant(results: Array, target) -> int:
+	for entry in results:
+		if not (entry is Dictionary):
+			continue
+		if entry.get("player") == target:
+			return int(entry.get("master_bonus", entry.get("roll", 0)))
 	return 0
 
 func _handle_monster_defeat(monster: Monster) -> void:
@@ -944,11 +980,12 @@ func _build_lottery_player_data() -> Array:
 		data.append({
 			"player": player,
 			"icon_texture": icon_texture,
-			"icon_name": icon_name
+			"icon_name": icon_name,
+			"bonuses": _bonus_config(false, player)
 		})
 	return data
 
-func _generate_rolls_from_data(players_data: Array) -> Array:
+func _generate_rolls_from_data(players_data: Array, include_level: bool = false) -> Array:
 	var results: Array = []
 	for entry in players_data:
 		if not (entry is Dictionary):
@@ -961,6 +998,7 @@ func _generate_rolls_from_data(players_data: Array) -> Array:
 			"player": participant,
 			"roll": roll_value
 		})
+	_apply_master_bonus(results, include_level)
 	return results
 
 func _apply_turn_order_from_rolls(rolls: Array) -> void:
@@ -992,16 +1030,27 @@ func _sort_roll_results(rolls: Array) -> Array:
 		enriched.append({
 			"player": entry.get("player"),
 			"roll": int(entry.get("roll", 0)),
+			"master_bonus": int(entry.get("master_bonus", entry.get("roll", 0))),
 			"tie": randf()
 		})
 	enriched.sort_custom(func(a, b):
-		var roll_a := int(a.get("roll", 0))
-		var roll_b := int(b.get("roll", 0))
-		if roll_a == roll_b:
+		var bonus_a := int(a.get("master_bonus", a.get("roll", 0)))
+		var bonus_b := int(b.get("master_bonus", b.get("roll", 0)))
+		if bonus_a == bonus_b:
 			return float(a.get("tie", 0.0)) > float(b.get("tie", 0.0))
-		return roll_a > roll_b
+		return bonus_a > bonus_b
 	)
 	return enriched
+
+func _apply_master_bonus(results: Array, include_level: bool) -> void:
+	for entry in results:
+		if not (entry is Dictionary):
+			continue
+		var roll_value := int(entry.get("roll", 0))
+		var master := roll_value
+		if include_level:
+			master += _level_for_participant(entry.get("player"))
+		entry["master_bonus"] = master
 
 func _start_day_cycle(increment_day: bool) -> void:
 	state = GameState.DAY

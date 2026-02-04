@@ -16,9 +16,13 @@ func enter(ctx: Dictionary) -> void:
 	var results: Array = await fsm.call_dep_await("run_dice_game", [player, monster])
 	var player_roll := _extract_roll(results, player)
 	var monster_roll := _extract_roll(results, monster)
+	var player_master := _extract_master_bonus(results, player)
+	var monster_master := _extract_master_bonus(results, monster)
 	ctx["player_roll"] = player_roll
 	ctx["monster_roll"] = monster_roll
-	ctx["player_won_round"] = player_roll >= monster_roll
+	ctx["player_master_bonus"] = player_master
+	ctx["monster_master_bonus"] = monster_master
+	ctx["player_won_round"] = player_master >= monster_master
 	ctx["player_ran"] = false
 	fsm._set_state(BattleStateMachine.StateName.PREPARE_PLAYER_CHOICE)
 
@@ -29,4 +33,12 @@ func _extract_roll(results: Array, target) -> int:
 			continue
 		if entry.get("player") == target:
 			return int(entry.get("roll", 0))
+	return 0
+
+func _extract_master_bonus(results: Array, target) -> int:
+	for entry in results:
+		if not (entry is Dictionary):
+			continue
+		if entry.get("player") == target:
+			return int(entry.get("master_bonus", entry.get("roll", 0)))
 	return 0
