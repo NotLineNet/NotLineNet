@@ -18,39 +18,39 @@ size = Vector3(1, 0.2, 1)
 [sub_resource type="PlaneMesh" id="PlaneMesh_rv6tc"]
 size = Vector2(4, 4)
 
-[node name="Tile" type="Node3D"]
+[node name="Tile" type="Node3D" unique_id=1704803897]
 script = ExtResource("1_el6ae")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=997401139]
 mesh = SubResource("BoxMesh_3nhhd")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=558909297]
 shape = SubResource("BoxShape3D_3nhhd")
 
-[node name="Area3D" type="Area3D" parent="."]
+[node name="Area3D" type="Area3D" parent="." unique_id=182462660]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Area3D" unique_id=1159572251]
 shape = SubResource("BoxShape3D_el6ae")
 
-[node name="BaseRoom" type="Node3D" parent="."]
+[node name="BaseRoom" type="Node3D" parent="." unique_id=1936850088]
 transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, 0, 0, 0)
 
-[node name="Floor" type="MeshInstance3D" parent="BaseRoom"]
+[node name="Floor" type="MeshInstance3D" parent="BaseRoom" unique_id=1848344113]
 mesh = SubResource("PlaneMesh_rv6tc")
 
-[node name="WallsContainer" type="Node3D" parent="."]
+[node name="WallsContainer" type="Node3D" parent="." unique_id=1017018916]
 
-[node name="UPWall" type="Node3D" parent="WallsContainer"]
+[node name="UPWall" type="Node3D" parent="WallsContainer" unique_id=780648437]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -2)
 
-[node name="RightWall" type="Node3D" parent="WallsContainer"]
+[node name="RightWall" type="Node3D" parent="WallsContainer" unique_id=383816178]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 2, 1, 0)
 
-[node name="DownWall" type="Node3D" parent="WallsContainer"]
+[node name="DownWall" type="Node3D" parent="WallsContainer" unique_id=160984491]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 1, 2)
 
-[node name="LeftWall" type="Node3D" parent="WallsContainer"]
+[node name="LeftWall" type="Node3D" parent="WallsContainer" unique_id=1943098706]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -2, 1, 0)
 
-[node name="MarkerForRoomUI" type="Marker3D" parent="."]
+[node name="MarkerForRoomUI" type="Marker3D" parent="." unique_id=619640572]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2251494, 0)

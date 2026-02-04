@@ -68,6 +68,9 @@ func _connect_game_manager_signals() -> void:
 		_game_manager.connect("active_player_action_points_changed", ap_changed)
 	if not _game_manager.is_connected("player_ready_after_battle", post_battle):
 		_game_manager.connect("player_ready_after_battle", post_battle)
+	var trap_check := Callable(self, "_on_trap_check_completed")
+	if not _game_manager.is_connected("trap_check_completed", trap_check):
+		_game_manager.connect("trap_check_completed", trap_check)
 
 func _connect_player_signals(player: Player) -> void:
 	_disconnect_player_signals()
@@ -91,9 +94,14 @@ func _disconnect_player_signals() -> void:
 func _on_player_turn_started(player: Player) -> void:
 	_player_turn_active = true
 	_connect_player_signals(player)
+	if player and player.current_tile and player.current_tile.room_type == Tile.RoomType.AMBUSH:
+		player.current_tile.mark_trap_checked_for_player(player)
 	if player and not player.is_moving:
 		_update_exit_connection(player.current_tile)
 		_show_room_ui_for_tile(player.current_tile)
+	if player and player.current_tile and player.current_tile.room_type == Tile.RoomType.AMBUSH:
+		# Do not trigger trap re-check as player started on trap
+		_update_room_ui_buttons()
 
 func _on_player_turn_finished(_player: Player) -> void:
 	if _battle_mode:
@@ -154,7 +162,7 @@ func _show_room_ui_for_tile(tile: Tile) -> void:
 func _initialize_room_ui(instance: Control) -> void:
 	_buttons.clear()
 	var container_path := "ButtonsRoot/VBoxContainer"
-	for name in ["ChestButton", "MonsterFightButton", "MonsterRunButton", "RoomExplore"]:
+	for name in ["ChestButton", "MonsterFightButton", "MonsterRunButton", "RoomExplore", "AmbushDisarm"]:
 		var button := instance.get_node_or_null("%s/%s" % [container_path, name]) as Button
 		if button:
 			button.visible = false
@@ -169,6 +177,8 @@ func _initialize_room_ui(instance: Control) -> void:
 					button.pressed.connect(Callable(self, "_on_monster_fight_pressed"))
 				"MonsterRunButton":
 					button.pressed.connect(Callable(self, "_on_monster_run_pressed"))
+				"AmbushDisarm":
+					button.pressed.connect(Callable(self, "_on_ambush_disarm_pressed"))
 
 func _update_room_ui_buttons() -> void:
 	if not _room_ui_instance or not _current_tile or not _player_turn_active:
@@ -185,6 +195,8 @@ func _update_room_ui_buttons() -> void:
 			_set_button_state("RoomExplore", _has_action_points(player))
 		Tile.RoomType.EMPTY:
 			_set_button_state("RoomExplore", _has_action_points(player))
+	if _current_tile.room_type == Tile.RoomType.AMBUSH and _current_tile.ambush_ready_to_disarm and player and player.action_points > GameConfig.MIN_ACTION_POINTS:
+		_set_button_state("AmbushDisarm", true)
 
 func _reset_button_states() -> void:
 	for button in _buttons.values():
@@ -228,6 +240,13 @@ func _on_player_ready_after_battle(player: Player) -> void:
 	if not player or player != _tracked_player:
 		return
 	_show_room_ui_for_tile(player.current_tile)
+
+func _on_trap_check_completed(tile: Tile, success: bool) -> void:
+	if not _player_turn_active:
+		return
+	if not tile or tile != _current_tile:
+		return
+	_update_room_ui_buttons()
 
 func _on_room_explore_pressed() -> void:
 	var player := _get_active_player()
@@ -277,6 +296,16 @@ func _on_monster_run_pressed() -> void:
 	_clear_room_ui()
 	if died and _game_manager and _game_manager.has_method("handle_trap_player_death"):
 		await _game_manager.handle_trap_player_death(player)
+
+func _on_ambush_disarm_pressed() -> void:
+	var player := _get_active_player()
+	if not player or player.action_points <= GameConfig.MIN_ACTION_POINTS:
+		return
+	player.spend_action_point()
+	if not _current_tile:
+		return
+	_current_tile.disarm_ambush()
+	_update_room_ui_buttons()
 
 func _update_exit_connection(tile: Tile) -> void:
 	if _exit_connected_tile == tile:

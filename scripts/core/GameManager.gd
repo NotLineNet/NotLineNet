@@ -8,6 +8,7 @@ signal player_turn_finished(player: Player)
 signal gameplay_started
 signal battle_state_changed(active: bool)
 signal player_ready_after_battle(player: Player)
+signal trap_check_completed(tile: Tile, success: bool)
 
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
 const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
@@ -16,6 +17,7 @@ const MonsterManager = preload("res://scripts/core/MonsterManager.gd")
 const TurnStateMachine = preload("res://scripts/turns/TurnStateMachine.gd")
 const BattleStateMachine = preload("res://scripts/battle/BattleStateMachine.gd")
 const BATTLE_UI_SCENE_PATH := "res://scenes/ui/BattleUI.tscn"
+const Tile = preload("res://scripts/core/Tile.gd")
 enum GameState { INIT, INTRO, DRAW_LOTS, DAY, BATTLE, SWITCHING_TURN, NIGHT, WAITING_NEW_DAY }
 const INTRO_SCENE_PATH := "res://scenes/ui/IntroCutScene.tscn"
 const DICE_GAME_UI_SCENE_PATH := "res://scenes/ui/DiceGameUI.tscn"
@@ -482,6 +484,10 @@ func _hide_player_ui() -> void:
 	if player_ui:
 		player_ui.hide_player_ui()
 
+func _restore_player_ui_if_hidden(should_restore: bool) -> void:
+	if should_restore:
+		_show_player_ui()
+
 
 func _hide_room_ui() -> void:
 	if room_ui_controller and room_ui_controller.has_method("hide_room_ui"):
@@ -569,12 +575,73 @@ func _run_dice_lottery() -> Array:
 	_dice_ui_instance = ui_instance
 	var parent_node: Node = ui_layer if ui_layer else self
 	parent_node.add_child(ui_instance)
+	_hide_player_ui()
 	var results: Array = await ui_instance.run_lottery(players_data)
 	_apply_master_bonus(results, false)
 	_dice_ui_instance = null
+	_restore_player_ui_if_hidden(true)
 	if results.size() == 0:
 		return _generate_rolls_from_data(players_data, false)
 	return results
+
+func start_trap_check(player: Player, tile: Tile) -> void:
+	if not player or not tile:
+		return
+	if tile._has_trap_been_checked_for_player(player):
+		return
+	var players_data: Array = []
+	players_data.append(_build_participant_view_data(player, false))
+	if players_data.size() == 0:
+		return
+	var results: Array = []
+	if not dice_game_ui_scene:
+		results = _generate_rolls_from_data(players_data, false)
+		await _handle_trap_check_results(results, player, tile)
+		return
+	var ui_instance := dice_game_ui_scene.instantiate()
+	if not ui_instance:
+		results = _generate_rolls_from_data(players_data, false)
+		await _handle_trap_check_results(results, player, tile)
+		return
+	_dice_ui_instance = ui_instance
+	var parent_node: Node = ui_layer if ui_layer else self
+	parent_node.add_child(ui_instance)
+	_hide_player_ui()
+	results = await ui_instance.run_lottery(players_data)
+	_apply_master_bonus(results, false)
+	_dice_ui_instance = null
+	_restore_player_ui_if_hidden(true)
+	if results.size() == 0:
+		results = _generate_rolls_from_data(players_data, false)
+	await _handle_trap_check_results(results, player, tile)
+
+func _handle_trap_check_results(results: Array, player: Player, tile: Tile) -> void:
+	var entry: Dictionary = {}
+	var found_entry := false
+	for item in results:
+		if not (item is Dictionary):
+			continue
+		if item.get("player") != player:
+			continue
+		entry = item
+		found_entry = true
+		break
+	if not found_entry:
+		return
+	var roll_value := int(entry.get("roll", 0))
+	var success := roll_value >= 5
+	if player:
+		player.last_moved_tile = null
+	if tile:
+		tile.set_ambush_ready_to_disarm(success)
+		tile.mark_trap_checked_for_player(player)
+	emit_signal("trap_check_completed", tile, success)
+	if success:
+		return
+	player.play_ambush_damage_animation()
+	var died := player.take_damage(1)
+	if died:
+		await handle_trap_player_death(player)
 
 func start_monster_battle(player: Player, monster: Monster, from_tile: bool = false) -> void:
 	print("Битва с монстром")
@@ -811,6 +878,7 @@ func _run_monster_battle(player: Player, monster: Monster) -> Array:
 	_dice_ui_instance = ui_instance
 	var parent_node: Node = ui_layer if ui_layer else self
 	parent_node.add_child(ui_instance)
+	_hide_player_ui()
 	var results: Array = []
 	if ui_instance.has_method("run_battle"):
 		results = await ui_instance.run_battle(participants_data)
@@ -819,40 +887,14 @@ func _run_monster_battle(player: Player, monster: Monster) -> Array:
 	else:
 		results = _generate_rolls_from_data(participants_data, true)
 	_dice_ui_instance = null
+	_restore_player_ui_if_hidden(true)
 	if results.size() == 0:
 		return _generate_rolls_from_data(participants_data, true)
 	return results
 
 func _build_battle_participant_data(participant) -> Dictionary:
-	var icon_texture: Texture2D = null
-	var icon_name: String = ""
-	if participant is Player:
-		var view_params: Dictionary = {}
-		if player_manager:
-			view_params = player_manager.get_view_params_for_player(participant)
-			icon_texture = player_manager.get_icon_texture_for_player(participant)
-		icon_name = view_params.get("CharIconName", "") as String
-		return {
-			"player": participant,
-			"icon_texture": icon_texture,
-			"icon_name": icon_name,
-			"bonuses": _bonus_config(true, participant)
-		}
-	if participant is Monster:
-		var params: Dictionary = monster_manager.get_default_view_params() if monster_manager else {}
-		icon_name = params.get("MonsterIconName", "") as String
-		if monster_manager:
-			icon_texture = monster_manager.get_icon_texture_for_monster(participant)
-		if not icon_texture and icon_name != "":
-			var loaded := load("res://image/%s.png" % icon_name)
-			if loaded is Texture2D:
-				icon_texture = loaded
-		return {
-			"player": participant,
-			"icon_texture": icon_texture,
-			"icon_name": icon_name,
-			"bonuses": _bonus_config(true, participant)
-		}
+	if participant is Player or participant is Monster:
+		return _build_participant_view_data(participant, true)
 	return {"player": participant}
 
 func _level_for_participant(participant) -> int:
@@ -874,6 +916,35 @@ func _bonus_config(include_level: bool, participant) -> Array:
 			"value": _level_for_participant(participant)
 		})
 	return config
+
+func _build_participant_view_data(participant, include_level: bool) -> Dictionary:
+	var icon_texture: Texture2D = null
+	var icon_name: String = ""
+	if participant is Player:
+		var view_params: Dictionary = {}
+		if player_manager:
+			view_params = player_manager.get_view_params_for_player(participant)
+			icon_texture = player_manager.get_icon_texture_for_player(participant)
+		icon_name = view_params.get("CharIconName", "") as String
+	elif participant is Monster:
+		var params: Dictionary = monster_manager.get_default_view_params() if monster_manager else {}
+		icon_name = params.get("MonsterIconName", "") as String
+		if monster_manager:
+			icon_texture = monster_manager.get_icon_texture_for_monster(participant)
+		if not icon_texture and icon_name != "":
+			var loaded := load("res://image/%s.png" % icon_name)
+			if loaded is Texture2D:
+				icon_texture = loaded
+	else:
+		return {"player": participant}
+
+	var entry: Dictionary = {
+		"player": participant,
+		"icon_texture": icon_texture,
+		"icon_name": icon_name
+	}
+	entry["bonuses"] = _bonus_config(include_level, participant)
+	return entry
 
 func _process_battle_outcome(results: Array, player: Player, monster: Monster) -> Dictionary:
 	var player_roll := _extract_roll_for_participant(results, player)
@@ -944,6 +1015,8 @@ func _process_player_death(player: Player) -> void:
 	if animation_player and animation_player.has_animation("Death"):
 		animation_player.play("Death")
 		await animation_player.animation_finished
+	if player.has_method("decrease_level"):
+		player.decrease_level()
 
 func _build_lottery_player_data() -> Array:
 	var data: Array = []
@@ -951,38 +1024,7 @@ func _build_lottery_player_data() -> Array:
 		var player: Player = players[i]
 		if not player:
 			continue
-		var icon_texture: Texture2D = null
-		var icon_name: String = ""
-		var view_params: Dictionary = {}
-		var params_by_index: Dictionary = {}
-		if player_manager and player_manager.has_method("get_view_params_for_index"):
-			params_by_index = player_manager.get_view_params_for_index(i)
-		if not params_by_index.is_empty():
-			view_params = params_by_index
-		elif player_manager and player_manager.has_method("get_view_params_for_player"):
-			view_params = player_manager.get_view_params_for_player(player)
-		if view_params.is_empty() and player_manager:
-			var meta_params := player_manager.get_meta("PlayersViewParams") as Array
-			if meta_params and i < meta_params.size():
-				var meta_entry: Dictionary = meta_params[i] as Dictionary
-				if meta_entry:
-					view_params = meta_entry
-
-		icon_name = view_params.get("CharIconName", "") as String
-
-		if player_manager and player_manager.has_method("get_icon_texture_for_player"):
-			icon_texture = player_manager.get_icon_texture_for_player(player)
-		if not icon_texture and icon_name != "":
-			var loaded := load("res://image/%s.png" % icon_name)
-			if loaded is Texture2D:
-				icon_texture = loaded
-
-		data.append({
-			"player": player,
-			"icon_texture": icon_texture,
-			"icon_name": icon_name,
-			"bonuses": _bonus_config(false, player)
-		})
+		data.append(_build_participant_view_data(player, false))
 	return data
 
 func _generate_rolls_from_data(players_data: Array, include_level: bool = false) -> Array:
@@ -1095,7 +1137,7 @@ func _focus_camera_on_red_tile() -> void:
 		return
 	target_root.set_follow_enabled(false)
 	target_root.set_input_enabled(false)
-	var red_tile := _get_red_tile()
+	var red_tile: Tile = _get_red_tile()
 	if red_tile:
 		var tween := target_root.focus_on_tile(
 			red_tile,

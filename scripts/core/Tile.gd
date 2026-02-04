@@ -10,10 +10,10 @@ enum RoomType {
 }
 
 const ROOM_TYPE_WEIGHTS := [
-	{"type": RoomType.EMPTY, "weight": 0.2},
-	{"type": RoomType.CHEST, "weight": 0.2},
-	{"type": RoomType.AMBUSH, "weight": 0.2},
-	{"type": RoomType.MONSTER, "weight": 0.4}
+	{"type": RoomType.EMPTY, "weight": 0.3},
+	{"type": RoomType.CHEST, "weight": 0},
+	{"type": RoomType.AMBUSH, "weight": 0.7},
+	{"type": RoomType.MONSTER, "weight": 0}
 ]
 
 const ROOM_SCENES := {
@@ -28,6 +28,8 @@ var room_content: Node3D
 var has_opened := false
 var _exits_locked_due_to_monster := false
 var forbid_locked_exits := false
+var ambush_ready_to_disarm := false
+var _trap_checked_players: Dictionary[int, bool] = {}
 
 enum WallVisual {
 	BLOCKED,
@@ -466,27 +468,52 @@ func _handle_room_player_entered() -> void:
 		return
 
 	if room_type == RoomType.AMBUSH:
-		_trigger_ambush(player)
+		if player.last_moved_tile == self and not ambush_ready_to_disarm and not _has_trap_been_checked_for_player(player):
+			await _trigger_ambush(player)
 
 func _handle_room_player_exited() -> void:
-	pass
+	if room_type == RoomType.AMBUSH:
+		ambush_ready_to_disarm = false
+		_clear_trap_check_for_player(_get_active_player())
+	var player := _get_active_player()
+	if player:
+		player.last_moved_tile = null
 
 func _trigger_ambush(player: Player) -> void:
-	if not room_content:
-		return
-	player.play_ambush_damage_animation()
-	var died := player.take_damage(1)
-	_clear_room_content()
-	room_type = RoomType.EMPTY
-	if died:
-		_dispatch_trap_death(player)
-
-func _dispatch_trap_death(player: Player) -> void:
 	var gm := _get_game_manager()
 	if not gm:
 		return
-	if gm.has_method("handle_trap_player_death"):
-		gm.handle_trap_player_death(player)
+	if gm.has_method("start_trap_check"):
+		await gm.start_trap_check(player, self)
+
+func mark_trap_checked_for_player(player: Player) -> void:
+	if not player:
+		return
+	_trap_checked_players[player.get_instance_id()] = true
+
+func _clear_trap_check_for_player(player: Player) -> void:
+	if not player:
+		return
+	var key := player.get_instance_id()
+	if _trap_checked_players.has(key):
+		_trap_checked_players.erase(key)
+
+func _has_trap_been_checked_for_player(player: Player) -> bool:
+	if not player:
+		return false
+	var key := player.get_instance_id()
+	return _trap_checked_players.has(key)
+
+func set_ambush_ready_to_disarm(value: bool) -> void:
+	ambush_ready_to_disarm = value
+
+func disarm_ambush() -> void:
+	if room_type != RoomType.AMBUSH:
+		return
+	_clear_room_content()
+	room_type = RoomType.EMPTY
+	ambush_ready_to_disarm = false
+	_trap_checked_players.clear()
 
 func _clear_room_content() -> void:
 	if room_content and room_content.is_inside_tree():

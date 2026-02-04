@@ -12,6 +12,7 @@ signal level_changed(new_value: int)
 
 const MAX_ACTION_POINTS := GameConfig.MAX_ACTION_POINTS
 const MIN_ACTION_POINTS := GameConfig.MIN_ACTION_POINTS
+const MIN_LEVEL := 1
 const MAX_LEVEL := 10
 
 var current_tile: Tile
@@ -22,6 +23,7 @@ var is_active := false
 var level_manager: LevelManager
 var action_points: int = GameConfig.MAX_ACTION_POINTS  # Количество очков действий
 var last_dice_roll: int = 0
+var last_moved_tile: Tile
 var is_dead := false
 var pending_respawn := false
 var health_points: int = GameConfig.PLAYER_STARTING_HEALTH
@@ -191,6 +193,7 @@ func move_to_tile(target_tile: Tile):
 	
 	# Обновляем текущий тайл
 	current_tile = target_tile
+	last_moved_tile = target_tile
 	
 	# Подключаемся к новому тайлу
 	_connect_to_tile(current_tile)
@@ -269,6 +272,16 @@ func increase_level(amount: int = 1) -> bool:
 	level_changed.emit(level)
 	return true
 
+func decrease_level(amount: int = 1) -> bool:
+	if amount <= 0:
+		return false
+	var next_level: int = max(level - amount, MIN_LEVEL)
+	if next_level == level:
+		return false
+	level = next_level
+	level_changed.emit(level)
+	return true
+
 func set_dice_roll(value: int) -> void:
 	last_dice_roll = value
 
@@ -313,6 +326,7 @@ func _teleport_to_tile(target_tile: Tile) -> void:
 	current_tile = target_tile
 	previous_tile = null
 	global_position = target_tile.global_position
+	last_moved_tile = target_tile
 	_connect_to_tile(current_tile)
 	current_tile.on_player_entered()
 	_move_camera_to_tile_immediate(current_tile)
