@@ -31,10 +31,10 @@ Main (Node3D) - главная сцена
 ├── CameraRoot (Node3D) - система камеры
 │   └── CameraPivot (Node3D) + Camera3D
 └── UI (CanvasLayer)
-    ├── HUD(cheats) - нижняя панель управления
-    ├── PlayerUI (экземпляр PlayerUI.tscn) - панель активного игрока
-    └── MainHUD
-        └── Portraits - портреты игроков в центре
+	├── HUD(cheats) - нижняя панель управления
+	├── PlayerUI (экземпляр PlayerUI.tscn) - панель активного игрока
+	└── MainHUD
+		└── Portraits - портреты игроков в центре
 ```
 
 ### Инстанцируемые сцены:
@@ -51,42 +51,42 @@ Main (Node3D) - главная сцена
 
 ```
 ИНИЦИАЛИЗАЦИЯ
-    ↓
+	↓
 game_loaded_full() [GameManager]
-    ↓
+	↓
 start_intro() → IntroCutScene анимация
-    ↓
+	↓
 intro_finished() → Подготовка камеры
-    ↓
+	↓
 game_started() → Показ UI и камера следует за игроком
-    ↓
+	↓
 _start_first_day()
-    ├─ Рефилл ОД всем игрокам (3 ОД)
-    ├─ Активный игрок = players[0]
-    └─ Камера фокусируется на активном игроке
-    ↓
+	├─ Рефилл ОД всем игрокам (3 ОД)
+	├─ Активный игрок = players[0]
+	└─ Камера фокусируется на активном игроке
+	↓
 ИГРОВОЙ ДЕНЬ (активен цикл ходов)
-    ├─ Игрок кликает на выход тайла
-    │  ├─ Проверка: ОД > 0, активный, не движется
-    │  ├─ Player.move_to_tile() 
-    │  │  ├─ Анимация движения (0.2 сек)
-    │  │  ├─ Анимация камеры с задержкой (0.05 сек отстав, 0.3 сек движ)
-    │  │  ├─ Рефилл видимости тайла (show_tile)
-    │  │  └─ Трата 1 ОД
-    │  └─ emit: active_player_action_points_changed
-    │
-    └─ Повтор для каждого игрока
-    ↓
+	├─ Игрок кликает на выход тайла
+	│  ├─ Проверка: ОД > 0, активный, не движется
+	│  ├─ Player.move_to_tile() 
+	│  │  ├─ Анимация движения (0.2 сек)
+	│  │  ├─ Анимация камеры с задержкой (0.05 сек отстав, 0.3 сек движ)
+	│  │  ├─ Рефилл видимости тайла (show_tile)
+	│  │  └─ Трата 1 ОД
+	│  └─ emit: active_player_action_points_changed
+	│
+	└─ Повтор для каждого игрока
+	↓
 request_player_finish_turn() [GameManager]
-    ├─ Отправка события в TurnStateMachine о желании игрока закончить ход
-    ├─ FSM делает DecidePlayerTurn -> PrepareEndTurn / CanPlayerActAgain
-    ├─ Когда все игроки завершили ходы, FSM эмитит turns_completed → night cycle
-    │
+	├─ Отправка события в TurnStateMachine о желании игрока закончить ход
+	├─ FSM делает DecidePlayerTurn -> PrepareEndTurn / CanPlayerActAgain
+	├─ Когда все игроки завершили ходы, FSM эмитит turns_completed → night cycle
+	│
 start_new_day()
-    ├─ currentGameDay += 1
-    ├─ Рефилл ОД
-    ├─ Активный = players[0]
-    └─ FSM стартует для нового игрока...
+	├─ currentGameDay += 1
+	├─ Рефилл ОД
+	├─ Активный = players[0]
+	└─ FSM стартует для нового игрока...
 ```
 
 ---
@@ -117,8 +117,35 @@ start_new_day()
 - `active_player_action_points_changed(new_value)` → слушают UI
 - `new_player_started_moving(new_player)` → слушают UI
 - `gameplay_started` → слушают UI
+ - `player_turn_finished(player)` → отдает ход TurnStateMachine после завершения
+ - `battle_state_changed(active: bool)` → экран UI скрывает/показывает финишную кнопку хода
+ - `player_ready_after_battle(player)` → используется для синхронизации `Tile` / `RoomUI` после победы из тайла
+
+**v1.2:** GameManager теперь инстанцирует `BattleStateMachine` (см. раздел ниже), проксирует события интерфейса (`show_battle_ui`, `_dep_show_battle_ui` и т.д.) и хранит `battle_ctx` с текущим игроком / монстром / тайлом. `start_monster_battle()` подготавливает контекст (тип боя: "Внезапный" / "Обычный"), ставит `state = GameState.BATTLE`, отправляет `battle_state_changed(true)` и ожидает, пока `BattleStateMachine` завершит последовательность состояний. `handle_battle_player_choice()` мостит UI-выборы к стейт-машине и подменяет тайл, с которого запрошен `run` (вариант "убежать"), чтобы применить штраф.
+
+**Важно:** `_finish_battle()` сбрасывает состояния (`battle_choice_tile`, `_battle_ctx`, `_battle_in_progress`), восстанавливает камеру / ввод и, если бой начался из тайла и игрок выжил, посылает `player_ready_after_battle`, чтобы соответствующий `Tile` мог сменить визуал.
 
 **Критическая зависимость:** Работает через group-поиск "game_manager"
+
+---
+
+### BattleStateMachine (регулятор битв)
+**Файл:** `scripts/battle/BattleStateMachine.gd`  
+**Роль:** Унифицировать последовательность фаз боев, не встраивая логику монстров внутрь `GameManager`. Загружает шесть состояний (PrepareBattle, DiceCheck, PreparePlayerChoice, PlayerChoice, PrepareEndBattle, EndBattle) и ожидает события/вызовы через делегированные зависимости.
+
+**Состояния:**
+- **PrepareBattle:** выключает ввод, скрывает/показывает UI, запускает `show_battle_ui`, выбирает следующую фазу по типу боя.
+- **DiceCheck:** скрывает UI, запускает `run_dice_game(player, monster)` через dependency и записывает выигранный бросок.
+- **PreparePlayerChoice:** проигрывает камеру удара, проверяет смертельный урон, при победе переводит напрямую в `PrepareEndBattle`, иначе переводит в `PlayerChoice`.
+- **PlayerChoice:** включает ввод и `PlayerUI`, показывает `RoomUI` в боевом режиме, ожидает событие `player_choice` (fight/run); при run вызывает `apply_run_penalty`.
+- **PrepareEndBattle:** в зависимости от результатов вызывает `handle_monster_death` или `handle_player_death`, ждет `hide_battle_ui`.
+- **EndBattle:** вызывает `finalize_battle` и закрывает бой.
+
+**Зависимости (через `_deps`):** `show_battle_ui`, `hide_battle_ui`, `enter_battle_room_ui`, `exit_battle_room_ui`, `disable_player_input`, `enable_player_input`, `play_camera_hit`, `run_dice_game`, `apply_player_damage`, `apply_run_penalty`, `handle_monster_death`, `handle_player_death`, `finalize_battle`. Нехватка хотя бы одного callable приводит к отсутствию визуальной обратной связи и потенциально зависающему состоянию — см. раздел 11.
+
+**Сигналы:** `state_changed(state_name: String, ctx: Dictionary)` для debug/log, `battle_finished(result_ctx: Dictionary)` чтобы GameManager знал, что все фазы закрыты.
+
+**Дополнительно:** `BattleState` (`scripts/battle/BattleState.gd`) — базовый класс, который переопределяют конкретные состояния; каждый `enter`, `exit` и `handle_event` получают общий контекст.
 
 ---
 
@@ -246,7 +273,7 @@ start_new_day()
 **Архитектура:**
 - `CameraRoot` (Node3D) — главный контейнер, позиция X-Z (горизонтально)
   - `CameraPivot` (Node3D) — наклон и высота (Y, Z вращение)
-    - `Camera3D` — поле зрения
+	- `Camera3D` — поле зрения
 
 **Zoom presets (zoom_presets)**
 - _v1.0:_ фиксированные три пресета (0 = близко, 1 = средне, 2 = далеко).
@@ -372,6 +399,18 @@ PlayersViewParams = [
   └─ Видимость нового тайла обновляется
 ```
 
+### 5.5 Боевая система
+- **Запуск:** `GameManager.start_monster_battle()` формирует контекст боя (`player`, `monster`, `from_tile`, `battle_type`) и переводит `state = GameState.BATTLE`, при этом `_battle_in_progress` устанавливается в `true` и рассылается `battle_state_changed(true)`.  
+- **Фазы:** `BattleStateMachine` выполняет PrepareBattle → (внезапный бой сразу → PlayerChoice, обычный бой → DiceCheck) → PreparePlayerChoice → PlayerChoice → (в зависимости от выбора: повторный DiceCheck или переход в PrepareEndBattle) → EndBattle.  
+- **Dice Check:** `DiceCheckState` вызывает `run_dice_game(player, monster)` через `dice_game_ui_scene` или fallback генерацию (roll 1..6). Результат сохраняется в контексте, косвенно определяя, попадет ли игрок в `PlayerChoice` или сразу завершит бой.  
+- **Player Choice:** игрок видит `PlayerUI` / `RoomUI` в боевом режиме и выбирает между `fight` и `run`. При `fight` снова срабатывает `DiceCheck`, при `run` выполняется `_apply_run_away_penalty` (анимация, −1 HP, монстр получает доступ к тайлу) и переходит в PrepareEndBattle.  
+- **Завершение:** `PrepareEndBattleState` вызывает `handle_monster_death` или `handle_player_death`, ждет `hide_battle_ui`, а `EndBattleState` вызывает `finalize_battle`. После этого `GameManager._finish_battle()` возвращает UI в `GameState.DAY`, сбрасывает `_battle_ctx` и сообщает `player_ready_after_battle`, чтобы связанный тайл мог вернуть игрока на карту.
+- **Разница с прежней версией:** до v1.2 монстры только лишали ОД и повреждений без чеков или UI, теперь есть полноценный цикл с состояния, отдающим контроль игроку, и штрафом за бегство.
+
+### 5.6 Кнопка «Закончить ход» и PlayerUI
+- **В прошлом:** `HUD` показывал кнопку только при 0 ОД, не учитывая, что игрок может быть в битве.  
+- **Сейчас:** `UI` следит за `battle_state_changed` и `is_battle_active()`, чтобы отключить кнопку и запретить `request_player_finish_turn()` на время боя. `PlayerUI.hide()` теперь защищает от повторного вызова анимации (если она уже запущена, новые вызовы игнорируются), а асинхронное ожидание `await get_tree().process_frame` в `PlayerChoiceState` гарантирует, что UI показывается после внезапных боев. Это устраняет рассинхронизацию между визуальной панелью и новым состоянием битвы.
+
 ---
 
 ## 6. ГРАФ ГЕНЕРАЦИИ ТАЙЛОВ
@@ -394,6 +433,9 @@ PlayersViewParams = [
 - **Каждый зелёный имеет ровно 1 выход** (выбирается в сторону красного)
 - **Выходы двусторонние** (если A→B то B→-A)
 - **Максимум 4 выхода** на один тайл (UP, DOWN, LEFT, RIGHT)
+
+### 6.1 Типы комнат и веса
+- В `scripts/core/Tile.gd` объявлен `RoomType` (EMPTY, CHEST, AMBUSH, MONSTER) и `ROOM_TYPE_WEIGHTS`, которые становятся входными данными для системы визуала и возможных событий. В v1.0–v1.1 `weight` для сундуков и засад был 0, поэтому такие комнаты не появлялись. В текущем состоянии (v1.2) веса выставлены как 0.2/0.2/0.2/0.4, что даёт шанс 60% на отличные от обычного монстра тайлы, но при этом сохраняет доминирование врагов. Это влияет на плотность лута / ловушек на этапе генерации и требует, чтобы LevelManager учитывал дополнительные состояния (например, блокировка выхода для `AMBUSH`).
 
 ---
 
@@ -420,6 +462,11 @@ Tile
 
 CameraDrag
   └─ требует Player (через group для active_player)
+
+BattleStateMachine
+  ├─ инстанцируется GameManager и получает `_deps` (show/hide BattleUI, enter/exit RoomUI, run_dice_game, apply_damage/run_penalty, finalize_battle)
+  ├─ зависит от наличия `BattleUI.tscn`, `RoomUIController` и `dice_game_ui_scene` для визуальной части и взаимодействия с игроком
+  └─ по завершению эмитит `battle_finished`, который обрабатывает `_finish_battle()` в GameManager
 ```
 
 ### 7.2 Точки отказа (Single Points of Failure)
@@ -429,6 +476,7 @@ CameraDrag
 3. **CameraPivot или Camera3D отсутствуют** → ошибка в CameraDrag._ready(), но не критична (returns)
 4. **Зелёные тайлы не созданы** → LevelManager.create_players() выводит ошибку, players не создаются
 5. **IntroCutScene не найдена** → fallback на preload, если preload не найдена → intro_finished() вызывается сразу
+6. **BattleUI / DiceGameUI отсутствуют или не содержат ожидаемые методы (`run_battle`, `AnimationPlayer`)** → `BattleStateMachine` продолжает ожидать входа от UI, но игроку нечем управлять → `start_monster_battle()` не освобождает `GameState.BATTLE`. Рекомендуется логировать отсутствие UI и досрочно завершать состояние.
 
 ### 7.3 Предположения в коде
 
@@ -437,6 +485,8 @@ CameraDrag
 3. **Активный игрок == на актуальном тайле** → код в Tile.on_player_entered() не синхронизирует, могут быть рассинхроны
 4. **Все тайлы существуют при create_grid()** → если radius < 1, компенсируется `radius = 1`
 5. **Маркеры выходов пересоздаются полностью** → старые удаляются, новые создаются (дорого, но безопасно)
+6. **BattleStateMachine получает все зависимые callables** → отсутствие одного ключа (`run_dice_game`, `enter_battle_room_ui`, `finalize_battle` и т.д.) оставит FSM без визуального эффекта и может повиснуть между состояниями.
+7. **dice_game_ui_scene.run_battle возвращает массив бросков** → если вернётся пустой массив, `DiceCheckState` будет читать 0 и бой пойдёт с минимальными шансами на победу.
 
 ---
 
@@ -496,49 +546,49 @@ CameraDrag
 │   ├─ Создание графа BFS                 │
 │   └─ create_players() → 3 Player        │
 └──────────────────┬──────────────────────┘
-                   │
-        call: game_loaded_full()
-                   │
-                   ▼
+				   │
+		call: game_loaded_full()
+				   │
+				   ▼
 ┌─────────────────────────────────────────┐
 │   INTRO: IntroCutScene.play_intro()     │
 │   ├─ Camera собственная                 │
 │   ├─ Animation: intro_camera_out        │
 │   └─ emit: intro_animation_finished     │
 └──────────────────┬──────────────────────┘
-                   │
-    call: intro_finished()
-                   │
-                   ▼
+				   │
+	call: intro_finished()
+				   │
+				   ▼
 ┌─────────────────────────────────────────┐
 │   TRANSFER: GameManager.game_started()  │
 │   ├─ UI show                            │
 │   ├─ Camera enabled = true              │
 │   └─ _start_first_day()                 │
 └──────────────────┬──────────────────────┘
-                   │
-                   ▼
-        ┌──────────────────────┐
-        │  GAME DAY LOOP       │
-        │ (повтор каждый день) │
-        │                      │
-        │  active_player[i]    │
-        │  - Каждый ход:       │
-        │    action_points -= 1│
-        │  - После 3 кликов:   │
-        │    finished_moving() │
-        │                      │
-        │  current_player_     │
-        │  finished_moving()   │
-        │  - wait 2s           │
-        │  - next player       │
-        │  - if all done:      │
-        │    start_new_day()   │
-        │                      │
-        │  day += 1            │
-        │  refill APs (3)      │
-        │  restart from [0]    │
-        └──────────────────────┘
+				   │
+				   ▼
+		┌──────────────────────┐
+		│  GAME DAY LOOP       │
+		│ (повтор каждый день) │
+		│                      │
+		│  active_player[i]    │
+		│  - Каждый ход:       │
+		│    action_points -= 1│
+		│  - После 3 кликов:   │
+		│    finished_moving() │
+		│                      │
+		│  current_player_     │
+		│  finished_moving()   │
+		│  - wait 2s           │
+		│  - next player       │
+		│  - if all done:      │
+		│    start_new_day()   │
+		│                      │
+		│  day += 1            │
+		│  refill APs (3)      │
+		│  restart from [0]    │
+		└──────────────────────┘
 ```
 
 ---
@@ -567,6 +617,10 @@ CameraDrag
 5. **Path debug lines создаются ВСЕ при каждом вызове build_path_debug_lines()**
    - Для большого лабиринта → сотни MeshInstance3D
    - **Рекомендация:** Кэшировать или использовать единый Mesh с LineDrawer
+
+6. **BattleStateMachine полагается на асинхронные интерфейсы**
+   - `start_monster_battle()` ждёт `_battle_state_machine.start()`, а тот `await`-ит `show_battle_ui()`, `run_dice_game()` и `play_camera_hit()`. Если UI-сцены не инстанцируются или не выдаются события `player_choice`, `_battle_in_progress` остаётся `true`, игрок не может закончить ход, а `GameState` застревает в `BATTLE`.
+   - **Рекомендация:** Добавить проверку `_deps`, тайм-ауты и fallback-UI, логировать сбои и принудительно завершать бой при отсутствии ответа.
 
 ### Средний риск:
 
@@ -605,6 +659,7 @@ CameraDrag
 ✅ Процедурная генерация гарантирует достижимость цели  
 ✅ Плавные анимации с правильным easing  
 ✅ Простая, понятная механика  
+✅ `BattleStateMachine` и обновлённый UI/PlayerUI позволяют плавно включать бой, показывать Dice Check и очищать состояние без жёсткой сцепки с каждым компонентом
 
 ### Слабые стороны:
 ❌ FSM для состояния игры разбросана по флагам  
@@ -612,16 +667,18 @@ CameraDrag
 ❌ Нет явной обработки ошибок (много fallback'ов)  
 ❌ Vis-а-vis скрытые тайлы всё ещё интерактивны  
 ❌ Path debug lines создаются наивно (много объектов)  
+❌ Новая битва зависит от множества делегатов и UI-сцен (BattleUI, DiceGameUI, RoomUI), и без них `GameManager` останется в `GameState.BATTLE`
 
 ### Где логика может сломаться:
 1. Отсутствие group "game_manager" → весь ввод падает
 2. LevelManager.create_grid() не вызвана → no tiles
 3. Player.level_manager не установлена → NPE при move_to_tile()
 4. Синхронизация player/tile стейта при быстрых кликах
+5. Отсутствие или падение `BattleUI`/`DiceGameUI` → `BattleStateMachine` не получает выбор игрока и оставляет `GameState.BATTLE`
 
 ---
 
 ## ИСТОРИЯ ДОКУМЕНТА
 
+- **v1.2** (04.02.2026) - Добавлены подробности боевой FSM (battle/dice/ui), новый сигнал `battle_state_changed`, переосмыслен `PlayerUI`/HUD, увеличены веса `RoomType` и собрано описание уязвимых зависимостей.
 - **v1.1** (25.01.2026) - Обновлена секция CameraDrag: актуальны четыре пресета, базовая скорость скролла и API центрации.
-- **v1.0** (25.01.2026) - Полный анализ архитектуры и геймдизайна

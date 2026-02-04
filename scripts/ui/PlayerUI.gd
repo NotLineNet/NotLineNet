@@ -12,6 +12,9 @@ var _log_prefix := "PlayerUI"
 
 @onready var hp_container: HBoxContainer = get_node_or_null("PanelRoot/HPContainer") as HBoxContainer
 
+func get_animation_player() -> AnimationPlayer:
+	return anim
+
 func _ready():
 	visible = false
 	anim = get_node_or_null("AnimationPlayer") as AnimationPlayer
@@ -42,9 +45,16 @@ func ensure_shown():
 
 func hide_player_ui():
 	_log("hide start")
+	if not visible:
+		_log("already hidden, skip hide")
+		return
 	if anim:
+		if anim.is_playing() and anim.current_animation == "PlayerUI_Hide":
+			return
 		_log("anim Hide start")
 		anim.play("PlayerUI_Hide")
+	else:
+		visible = false
 
 func set_health_icons(count: int) -> void:
 	if not hp_container:

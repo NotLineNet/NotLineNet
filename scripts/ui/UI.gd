@@ -11,6 +11,7 @@ extends PanelContainer
 
 var paths_visible: bool = false
 var level_manager: LevelManager
+var _battle_active := false
 
 func _ready():
 	_find_level_manager()
@@ -35,6 +36,10 @@ func _on_action_points_changed(new_value: int):
 	_update_player_ui_action_points(new_value)
 	_update_finish_button(new_value)
 
+func _on_battle_state_changed(active: bool) -> void:
+	_battle_active = active
+	_update_finish_button(_get_active_action_points())
+
 func _update_player_ui_action_points(count: int):
 	"""Скрывает/показывает ColorRect внутри AP нод в PlayerUI"""
 	if not player_ui_action_points:
@@ -51,7 +56,17 @@ func _update_player_ui_action_points(count: int):
 func _update_finish_button(count: int):
 	if not button_finish:
 		return
-	button_finish.visible = count == 0
+	button_finish.visible = count == 0 and not _is_battle_active()
+
+func _is_battle_active() -> bool:
+	if game_manager and game_manager.has_method("is_battle_active"):
+		_battle_active = game_manager.is_battle_active()
+	return _battle_active
+
+func _get_active_action_points() -> int:
+	if game_manager and game_manager.active_player:
+		return game_manager.active_player.action_points
+	return 0
 
 func _setup_game_manager_connections() -> void:
 	if not game_manager:
@@ -62,8 +77,11 @@ func _setup_game_manager_connections() -> void:
 		game_manager.connect("active_player_changed", Callable(self, "_on_active_player_changed"))
 	if not game_manager.is_connected("gameplay_started", Callable(self, "_on_gameplay_started")):
 		game_manager.connect("gameplay_started", Callable(self, "_on_gameplay_started"))
+	if not game_manager.is_connected("battle_state_changed", Callable(self, "_on_battle_state_changed")):
+		game_manager.connect("battle_state_changed", Callable(self, "_on_battle_state_changed"))
 	_apply_active_player_state(game_manager.active_player)
 	_highlight_active_portrait()
+	_on_battle_state_changed(game_manager.is_battle_active() if game_manager.has_method("is_battle_active") else false)
 
 func _highlight_active_portrait() -> void:
 	var player_manager := get_node_or_null("../../PlayerManager") as PlayerManager

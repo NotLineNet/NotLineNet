@@ -6,6 +6,7 @@ signal active_player_action_points_changed(new_value: int)
 signal new_player_started_moving(new_player: Player)
 signal player_turn_finished(player: Player)
 signal gameplay_started
+signal battle_state_changed(active: bool)
 signal player_ready_after_battle(player: Player)
 
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
@@ -579,6 +580,7 @@ func start_monster_battle(player: Player, monster: Monster, from_tile: bool = fa
 	}
 	_battle_choice_tile = player.current_tile
 	_battle_in_progress = true
+	emit_signal("battle_state_changed", true)
 	state = GameState.BATTLE
 	print("BattleType: %s" % _battle_ctx.get("battle_type", ""))
 	if _battle_state_machine:
@@ -684,6 +686,7 @@ func _finish_battle(result_ctx: Dictionary) -> void:
 	if result_ctx.get("from_tile", false) and player:
 		player.consume_tile_combat_request()
 	_battle_in_progress = false
+	emit_signal("battle_state_changed", false)
 	_battle_ctx.clear()
 	_battle_choice_tile = null
 
