@@ -412,6 +412,8 @@ func _connect_active_player_signals() -> void:
 		active_player.action_points_changed.connect(_on_active_player_action_points_changed)
 	if not active_player.health_changed.is_connected(_on_active_player_health_changed):
 		active_player.health_changed.connect(_on_active_player_health_changed)
+	if not active_player.level_changed.is_connected(_on_active_player_level_changed):
+		active_player.level_changed.connect(_on_active_player_level_changed)
 
 func _disconnect_active_player_signals(player: Player) -> void:
 	if not player:
@@ -420,6 +422,8 @@ func _disconnect_active_player_signals(player: Player) -> void:
 		player.action_points_changed.disconnect(_on_active_player_action_points_changed)
 	if player.health_changed.is_connected(_on_active_player_health_changed):
 		player.health_changed.disconnect(_on_active_player_health_changed)
+	if player.level_changed.is_connected(_on_active_player_level_changed):
+		player.level_changed.disconnect(_on_active_player_level_changed)
 
 func _on_active_player_action_points_changed(new_value: int) -> void:
 	emit_signal("active_player_action_points_changed", new_value)
@@ -435,6 +439,9 @@ func _on_active_player_health_changed(new_value: int, old_value: int) -> void:
 		return
 	player_ui.set_health_icons(new_value)
 	player_ui.reset_pending_hp_loss()
+
+func _on_active_player_level_changed(new_level: int) -> void:
+	_refresh_player_level_display()
 
 func _refill_player_action_points() -> void:
 	for player in players:
@@ -490,6 +497,7 @@ func _refresh_player_display() -> void:
 	if player_manager and player_manager.has_method("update_active_player_display"):
 		player_manager.call("update_active_player_display", active_player)
 	_refresh_player_health_display()
+	_refresh_player_level_display()
 
 func _refresh_player_health_display() -> void:
 	if not player_ui:
@@ -498,6 +506,15 @@ func _refresh_player_health_display() -> void:
 		return
 	player_ui.set_health_icons(active_player.health_points)
 	player_ui.reset_pending_hp_loss()
+	_refresh_player_level_display()
+
+func _refresh_player_level_display() -> void:
+	if not player_ui:
+		player_ui = get_node_or_null("../UI/PlayerUI")
+	if not player_ui or not active_player:
+		return
+	if player_ui.has_method("set_level"):
+		player_ui.set_level(active_player.level)
 
 func _find_camera_root() -> CameraDrag:
 	if camera_root:
@@ -659,6 +676,8 @@ func _finish_battle(result_ctx: Dictionary) -> void:
 	var player_died := bool(result_ctx.get("player_died", false))
 	var monster_defeated := bool(result_ctx.get("monster_defeated", false))
 	var player_won := monster_defeated and not player_died
+	if monster_defeated and player and not player_died:
+		player.increase_level()
 	state = GameState.DAY
 	if camera_root:
 		camera_root.set_follow_enabled(true)

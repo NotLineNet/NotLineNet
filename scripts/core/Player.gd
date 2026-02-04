@@ -8,9 +8,11 @@ signal action_points_changed(new_value: int)
 signal moved_to_tile(new_tile: Tile)
 signal movement_started()
 signal health_changed(new_value: int, old_value: int)
+signal level_changed(new_value: int)
 
 const MAX_ACTION_POINTS := GameConfig.MAX_ACTION_POINTS
 const MIN_ACTION_POINTS := GameConfig.MIN_ACTION_POINTS
+const MAX_LEVEL := 10
 
 var current_tile: Tile
 var previous_tile: Tile  # Для возврата на предыдущий тайл
@@ -25,6 +27,7 @@ var pending_respawn := false
 var health_points: int = GameConfig.PLAYER_STARTING_HEALTH
 var _default_body_position: Vector3 = Vector3.ZERO
 var _tile_combat_requested := false
+var level: int = 1
 
 # Размер игрока - половина размера тайла (TILE_SIZE = 2.0, значит игрок = 1.0)
 const PLAYER_SIZE := 1.0
@@ -255,6 +258,16 @@ func refill_action_points():
 func reset_for_new_day():
 	"""Сбрасывает состояние на начало дня без изменения позиции"""
 	previous_tile = null
+
+func increase_level(amount: int = 1) -> bool:
+	if amount <= 0:
+		return false
+	var next_level: int = min(level + amount, MAX_LEVEL)
+	if next_level == level:
+		return false
+	level = next_level
+	level_changed.emit(level)
+	return true
 
 func set_dice_roll(value: int) -> void:
 	last_dice_roll = value

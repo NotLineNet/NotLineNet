@@ -8,6 +8,7 @@ signal moved_to_tile(new_tile: Tile)
 
 var current_tile: Tile
 var level_manager: LevelManager
+var level: int = 1
 var is_moving := false
 var is_dead := false
 

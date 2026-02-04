@@ -11,6 +11,7 @@ var _current_visual_health: int = 0
 var _log_prefix := "PlayerUI"
 
 @onready var hp_container: HBoxContainer = get_node_or_null("PanelRoot/HPContainer") as HBoxContainer
+@onready var level_label: Label = get_node_or_null("PanelRoot/LVLContainer/LVLLabel") as Label
 
 func get_animation_player() -> AnimationPlayer:
 	return anim
@@ -143,3 +144,8 @@ func _on_visibility_changed() -> void:
 
 func _log(msg: String) -> void:
 	print("%s: %s" % [_log_prefix, msg])
+
+func set_level(value: int) -> void:
+	if not level_label:
+		return
+	level_label.text = str(value)
