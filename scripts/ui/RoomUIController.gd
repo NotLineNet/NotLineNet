@@ -452,7 +452,11 @@ func _request_room_ui_for_tile(tile: Tile) -> void:
 	_pending_tile = tile
 	var queue := _queue()
 	if queue and queue.has_method("request_window"):
-		queue.request_window(WINDOW_ID, {"tile": tile}, 3)
+		var handle: Dictionary = queue.request_window(WINDOW_ID, {"tile": tile}, 3)
+		# Если очередь не смогла показать окно (например, из-за конкуренции с другими окнами),
+		# пробуем показать напрямую, чтобы RoomUI не зависела от PlayerUI.
+		if handle.get("status", "") == "FAILED":
+			_show_room_ui_for_tile(tile)
 		return
 	_show_room_ui_for_tile(tile)
 

@@ -241,10 +241,8 @@ func _close_other_windows(except_id: String, requested_priority: int) -> void:
 		var is_player_room_pair: bool = ((id == "PLAYER_UI" and except_id == "ROOM_UI") or (id == "ROOM_UI" and except_id == "PLAYER_UI"))
 		if is_player_room_pair:
 			continue
-		# Закрываем, только если окно выше приоритетом или (равный приоритет и не разрешённая пара).
+		# Закрываем только окна с строго более высоким приоритетом.
 		if other_priority > requested_priority:
-			to_close.append(id)
-		elif other_priority == requested_priority:
 			to_close.append(id)
 	for id in to_close:
 		close_window(id)
