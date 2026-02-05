@@ -1,4 +1,10 @@
 [gd_resource type="Resource" format=3]
 
 [resource]
-windows = {}
+windows = {
+"PLAYER_UI": {
+"node_path": NodePath("/root/Main/UI/PlayerUI"),
+"priority": 4,
+"singleton": true
+}
+}

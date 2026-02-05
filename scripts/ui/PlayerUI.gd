@@ -10,6 +10,8 @@ var _show_animation_playing := false
 var _current_visual_health: int = 0
 var _log_prefix := "PlayerUI"
 
+const WINDOW_ID := "PLAYER_UI"
+
 @onready var hp_container: HBoxContainer = get_node_or_null("PanelRoot/HPContainer") as HBoxContainer
 @onready var level_label: Label = get_node_or_null("PanelRoot/LVLContainer/LVLLabel") as Label
 @onready var hand_ui: HandUI = get_node_or_null("PanelRoot/HandUI") as HandUI
@@ -18,6 +20,7 @@ func get_animation_player() -> AnimationPlayer:
 	return anim
 
 func _ready():
+	add_to_group("ui_window_%s" % WINDOW_ID)
 	visible = false
 	anim = get_node_or_null("AnimationPlayer") as AnimationPlayer
 	if anim:

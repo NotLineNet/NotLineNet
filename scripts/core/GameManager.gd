@@ -127,6 +127,13 @@ func _prepare_initial_ui_state() -> void:
 		hud_ui.visible = true
 
 
+func _ui_window_queue() -> Node:
+	var tree := get_tree()
+	if not tree:
+		return null
+	return tree.root.get_node_or_null("UIWindowQueue")
+
+
 func _ensure_hand_ui() -> HandUI:
 	if _hand_ui and is_instance_valid(_hand_ui):
 		return _hand_ui
@@ -555,6 +562,16 @@ func _show_player_ui() -> void:
 	if not player_ui:
 		player_ui = get_node_or_null("../UI/PlayerUI")
 	_refresh_player_display()
+	var handled_via_queue := false
+	var queue := _ui_window_queue()
+	if queue and queue.has_method("request_window"):
+		var handle = queue.request_window("PLAYER_UI")
+		if handle.has("instance") and handle.instance:
+			player_ui = handle.instance
+		if handle.get("status", "") != "FAILED":
+			handled_via_queue = true
+	if handled_via_queue:
+		return
 	if player_ui:
 		var should_ensure := false
 		if player_ui.has_method("get_animation_player"):
@@ -569,6 +586,13 @@ func _show_player_ui() -> void:
 			player_ui.show_player_ui()
 
 func _hide_player_ui() -> void:
+	var handled_via_queue := false
+	var queue := _ui_window_queue()
+	if queue and queue.has_method("close_window"):
+		queue.close_window("PLAYER_UI")
+		handled_via_queue = true
+	if handled_via_queue:
+		return
 	if not player_ui:
 		player_ui = get_node_or_null("../UI/PlayerUI")
 	if player_ui:
