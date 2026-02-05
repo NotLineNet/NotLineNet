@@ -23,6 +23,7 @@ const INTRO_SCENE_PATH := "res://scenes/ui/IntroCutScene.tscn"
 const DICE_GAME_UI_SCENE_PATH := "res://scenes/ui/DiceGameUI.tscn"
 const BONUS_TYPE_DICE := "Dice"
 const BONUS_TYPE_LVL := "LVL"
+const DEFAULT_CARD_DATA := {"cost": 1}
 
 @export var total_players: int = 3
 @export var intro_scene: PackedScene = preload(INTRO_SCENE_PATH)
@@ -44,6 +45,7 @@ var _battle_state_machine: BattleStateMachine
 var _battle_in_progress := false
 var _battle_ctx: Dictionary = {}
 var _battle_choice_tile: Tile
+var _hand_ui: HandUI
 
 @onready var player_ui := get_node_or_null("../UI/PlayerUI")
 @onready var hud_ui := get_node_or_null("../UI/HUD(cheats)")
@@ -123,6 +125,87 @@ func _prepare_initial_ui_state() -> void:
 		main_hud.visible = false
 	if hud_ui:
 		hud_ui.visible = true
+
+
+func _ensure_hand_ui() -> HandUI:
+	if _hand_ui and is_instance_valid(_hand_ui):
+		return _hand_ui
+	if not player_ui:
+		player_ui = get_node_or_null("../UI/PlayerUI")
+	if player_ui and player_ui.has_method("get_hand_ui"):
+		_hand_ui = player_ui.get_hand_ui()
+	_connect_hand_signals()
+	return _hand_ui
+
+
+func _connect_hand_signals() -> void:
+	if not _hand_ui:
+		return
+	if not _hand_ui.card_added.is_connected(_on_hand_card_added):
+		_hand_ui.card_added.connect(_on_hand_card_added)
+	if not _hand_ui.card_played.is_connected(_on_hand_card_played):
+		_hand_ui.card_played.connect(_on_hand_card_played)
+
+
+func _persist_active_player_hand() -> void:
+	if not active_player:
+		return
+	var hand := _ensure_hand_ui()
+	if not hand:
+		return
+	active_player.cards = hand.get_cards_data()
+
+
+func _refresh_player_cards_display(animated := false) -> void:
+	var hand := _ensure_hand_ui()
+	if not hand:
+		return
+	if not active_player:
+		hand.clear_cards(animated)
+		return
+	var stored_cards: Array = []
+	if active_player.cards != null:
+		stored_cards = active_player.cards
+	hand.set_cards_data(_duplicate_cards_array(stored_cards), animated)
+
+
+func grant_card_to_player(player: Player, card_data = null, animated := true) -> void:
+	if not player:
+		return
+	var payload: Variant = card_data if card_data != null else _default_card_data()
+	var stored: Variant = _duplicate_card_data(payload)
+	if player.cards == null:
+		player.cards = []
+	player.cards.append(_duplicate_card_data(stored))
+	if player == active_player:
+		var hand := _ensure_hand_ui()
+		if hand:
+			hand.add_card(_duplicate_card_data(payload), animated)
+
+
+func _default_card_data():
+	return DEFAULT_CARD_DATA.duplicate(true)
+
+
+func _duplicate_cards_array(source: Array) -> Array:
+	var result: Array = []
+	for entry in source:
+		result.append(_duplicate_card_data(entry))
+	return result
+
+
+func _duplicate_card_data(data: Variant) -> Variant:
+	if data is Dictionary:
+		return (data as Dictionary).duplicate(true)
+	return data
+
+
+func _on_hand_card_added(_card) -> void:
+	_persist_active_player_hand()
+
+
+func _on_hand_card_played(_card_data) -> void:
+	_persist_active_player_hand()
 
 func _log_state(label: String) -> void:
 	print("Game state: %s" % label)
@@ -387,8 +470,11 @@ func set_active_player(player: Player) -> void:
 	var index := players.find(player)
 	if index == -1:
 		return
+	_persist_active_player_hand()
 	if active_player == player:
 		_active_player_index = index
+		_refresh_player_cards_display()
+		_refresh_player_display()
 		return
 	if active_player:
 		_disconnect_active_player_signals(active_player)
@@ -399,14 +485,18 @@ func set_active_player(player: Player) -> void:
 	_connect_active_player_signals()
 	_on_active_player_action_points_changed(active_player.action_points)
 	_refresh_player_health_display()
+	_refresh_player_cards_display()
 	emit_signal("active_player_changed", active_player)
 
 func _clear_active_player() -> void:
+	_persist_active_player_hand()
 	if active_player:
 		_disconnect_active_player_signals(active_player)
 		active_player.set_active(false)
 	active_player = null
 	_active_player_index = -1
+	if _hand_ui:
+		_hand_ui.clear_cards(false)
 	emit_signal("active_player_changed", active_player)
 
 func _connect_active_player_signals() -> void:
@@ -506,6 +596,7 @@ func _refresh_player_display() -> void:
 		player_manager.call("update_active_player_display", active_player)
 	_refresh_player_health_display()
 	_refresh_player_level_display()
+	_refresh_player_cards_display()
 
 func _refresh_player_health_display() -> void:
 	if not player_ui:
@@ -758,6 +849,9 @@ func _finish_battle(result_ctx: Dictionary) -> void:
 		_set_player_input_enabled(true)
 		if monster_defeated:
 			_show_player_ui()
+			await _wait_player_ui_shown()
+			_refresh_player_cards_display()
+			grant_card_to_player(player, null, true)
 		if player:
 			_battle_choice_tile = player.current_tile
 		if player and (result_ctx.get("from_tile", false)) and monster_defeated:
@@ -864,6 +958,22 @@ func _wait_player_ui_hidden() -> void:
 		await get_tree().process_frame
 		guard += 1
 		if guard > 120: # ~2 секунды при 60 fps
+			break
+
+
+func _wait_player_ui_shown() -> void:
+	if not player_ui:
+		player_ui = get_node_or_null("../UI/PlayerUI")
+	if not player_ui:
+		return
+	if player_ui.has_method("wait_for_show_complete"):
+		await player_ui.wait_for_show_complete()
+		return
+	var guard := 0
+	while not player_ui.visible:
+		await get_tree().process_frame
+		guard += 1
+		if guard > 120:
 			break
 
 func _run_monster_battle(player: Player, monster: Monster) -> Array:

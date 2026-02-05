@@ -254,11 +254,11 @@ offset_bottom = 156.0
 grow_horizontal = 2
 alignment = 1
 
-[node name="PlayerUI" parent="UI" unique_id=1791129591 instance=ExtResource("6_ow5a4")]
-offset_top = -120.70502
-
 [node name="RoomUIController" type="Node" parent="UI" unique_id=2096759300]
 script = ExtResource("8_roomui")
+
+[node name="PlayerUI" parent="UI" unique_id=1791129591 instance=ExtResource("6_ow5a4")]
+offset_top = -120.70502
 
 [connection signal="pressed" from="UI/HUD(cheats)/HBoxContainer/ODButton" to="UI/HUD(cheats)" method="_on_od_button_pressed"]
 [connection signal="pressed" from="UI/HUD(cheats)/HBoxContainer/AddCardButton" to="UI/HUD(cheats)" method="_on_add_card_button_pressed"]

@@ -90,6 +90,9 @@ grow_vertical = 2
 
 [node name="HandUI" parent="PanelRoot" unique_id=1815063043 node_paths=PackedStringArray("play_zone") instance=ExtResource("3_1f1if")]
 layout_mode = 1
+offset_top = -154.0
+offset_bottom = -0.71435547
+grow_vertical = 2
 play_zone = NodePath("../../PlayZone")
 
 [node name="Diller" type="Control" parent="PanelRoot/HandUI" unique_id=2133492604]
@@ -98,6 +101,7 @@ anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 grow_horizontal = 2
+mouse_filter = 2
 
 [node name="Marker2D" type="Marker2D" parent="PanelRoot/HandUI/Diller" unique_id=559651805]
 

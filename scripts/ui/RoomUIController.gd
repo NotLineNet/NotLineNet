@@ -260,12 +260,16 @@ func _on_room_explore_pressed() -> void:
 	if player.action_points <= GameConfig.MIN_ACTION_POINTS:
 		return
 	player.spend_action_point()
+	_try_grant_explore_card(player)
 	_update_room_ui_buttons()
 
 func _on_chest_button_pressed() -> void:
 	var player := _get_active_player()
 	if player:
-		player.add_action_point()
+		if randf() < 0.5:
+			player.add_action_point()
+		else:
+			_grant_card_to_player(player)
 	if _current_tile:
 		_current_tile.claim_chest()
 	_update_room_ui_buttons()
@@ -311,6 +315,18 @@ func _on_ambush_disarm_pressed() -> void:
 		return
 	_current_tile.disarm_ambush()
 	_update_room_ui_buttons()
+
+
+func _grant_card_to_player(player: Player, animated := true) -> void:
+	if not player:
+		return
+	if _game_manager and _game_manager.has_method("grant_card_to_player"):
+		_game_manager.grant_card_to_player(player, null, animated)
+
+
+func _try_grant_explore_card(player: Player) -> void:
+	if randf() < 0.1:
+		_grant_card_to_player(player)
 
 func _update_exit_connection(tile: Tile) -> void:
 	if _exit_connected_tile == tile:

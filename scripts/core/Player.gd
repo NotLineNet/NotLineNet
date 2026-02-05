@@ -30,6 +30,7 @@ var health_points: int = GameConfig.PLAYER_STARTING_HEALTH
 var _default_body_position: Vector3 = Vector3.ZERO
 var _tile_combat_requested := false
 var level: int = 1
+var cards: Array = []
 
 # Размер игрока - половина размера тайла (TILE_SIZE = 2.0, значит игрок = 1.0)
 const PLAYER_SIZE := 1.0

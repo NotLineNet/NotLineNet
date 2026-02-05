@@ -58,6 +58,15 @@ func hide_player_ui():
 	else:
 		visible = false
 
+
+func wait_for_show_complete() -> void:
+	var guard := 0
+	while _show_animation_playing or not visible:
+		await get_tree().process_frame
+		guard += 1
+		if guard > 120:
+			break
+
 func set_health_icons(count: int) -> void:
 	if not hp_container:
 		return

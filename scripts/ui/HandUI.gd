@@ -221,3 +221,35 @@ func _update_drag_feedback() -> void:
 	var over := _is_over_play_zone(dragging_card)
 	var highlight := over and dragging_card.is_hovered()
 	dragging_card.set_playzone_highlight(highlight)
+
+
+func get_cards_data() -> Array:
+	var data: Array = []
+	for card in cards:
+		if card:
+			data.append(_duplicate_card_data(card.card_data))
+	return data
+
+
+func set_cards_data(card_datas: Array, animated := false) -> void:
+	clear_cards(false)
+	if not card_datas:
+		_relayout(animated)
+		return
+	for entry in card_datas:
+		await add_card(_duplicate_card_data(entry), animated)
+	_relayout(animated)
+
+
+func clear_cards(animated := false) -> void:
+	for card in cards:
+		if card:
+			card.queue_free()
+	cards.clear()
+	_relayout(animated)
+
+
+func _duplicate_card_data(data) -> Variant:
+	if data is Dictionary:
+		return (data as Dictionary).duplicate(true)
+	return data

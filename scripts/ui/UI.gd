@@ -140,12 +140,15 @@ func _on_button_finish_pressed() -> void:
 
 
 func _on_add_card_button_pressed() -> void:
+	var card_data := {"cost": 1}
+	if game_manager and game_manager.active_player and game_manager.has_method("grant_card_to_player"):
+		game_manager.grant_card_to_player(game_manager.active_player, card_data, true)
+		return
 	if not player_ui:
 		return
 	var hand: HandUI = player_ui.get_hand_ui()
 	if not hand:
 		return
-	var card_data := {"cost": 1}
 	hand.add_card(card_data, true)
 
 func _on_start_button_pressed() -> void:
