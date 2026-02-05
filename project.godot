@@ -23,6 +23,7 @@ config/icon="res://icon.svg"
 
 Directions="*res://scripts/core/Directions.gd"
 EventBus="*res://scripts/core/EventBus.gd"
+UIWindowQueue="*res://scripts/ui/UIWindowQueue.gd"
 
 [display]
 
