@@ -844,7 +844,7 @@ func _handle_trap_check_results(results: Array, player: Player, tile: Tile) -> v
 	if player:
 		player.last_moved_tile = null
 	if tile:
-		tile.set_ambush_ready_to_disarm(success)
+		tile.set_ambush_ready_to_disarm(success, player)
 		tile.mark_trap_checked_for_player(player)
 	emit_signal("trap_check_completed", tile, success)
 	if success:

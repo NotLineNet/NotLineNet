@@ -12,9 +12,9 @@ enum RoomType {
 
 const ROOM_TYPE_WEIGHTS := [
 	{"type": RoomType.MONSTER, "weight": 0},
-	{"type": RoomType.CHEST, "weight": 0},
+	{"type": RoomType.CHEST, "weight": 1},
 	{"type": RoomType.AMBUSH, "weight": 0},
-	{"type": RoomType.EMPTY, "weight": 1}
+	{"type": RoomType.EMPTY, "weight": 0}
 ]
 
 const ROOM_SCENES := {
@@ -31,6 +31,7 @@ var _exits_locked_due_to_monster := false
 var forbid_locked_exits := false
 var ambush_ready_to_disarm := false
 var _trap_checked_players: Dictionary[int, bool] = {}
+var _ambush_ready_players: Dictionary[int, bool] = {}
 
 enum WallVisual {
 	BLOCKED,
@@ -474,8 +475,9 @@ func _handle_room_player_entered() -> void:
 
 func _handle_room_player_exited() -> void:
 	if room_type == RoomType.AMBUSH:
-		ambush_ready_to_disarm = false
-		_clear_trap_check_for_player(_get_active_player())
+		var player := _get_active_player()
+		_clear_trap_check_for_player(player)
+		_clear_ambush_ready_for_player(player)
 	var player := _get_active_player()
 	if player:
 		player.last_moved_tile = null
@@ -505,8 +507,32 @@ func _has_trap_been_checked_for_player(player: Player) -> bool:
 	var key := player.get_instance_id()
 	return _trap_checked_players.has(key)
 
-func set_ambush_ready_to_disarm(value: bool) -> void:
+func has_trap_been_checked_for_player(player: Player) -> bool:
+	return _has_trap_been_checked_for_player(player)
+
+func set_ambush_ready_to_disarm(value: bool, player: Player = null) -> void:
 	ambush_ready_to_disarm = value
+	if player:
+		var key := player.get_instance_id()
+		if value:
+			_ambush_ready_players[key] = true
+		else:
+			_ambush_ready_players.erase(key)
+
+func _clear_ambush_ready_for_player(player: Player) -> void:
+	if not player:
+		return
+	var key := player.get_instance_id()
+	if _ambush_ready_players.has(key):
+		_ambush_ready_players.erase(key)
+	if _ambush_ready_players.is_empty():
+		ambush_ready_to_disarm = false
+
+func can_player_disarm_ambush(player: Player) -> bool:
+	if not player:
+		return false
+	var key := player.get_instance_id()
+	return _ambush_ready_players.has(key)
 
 func disarm_ambush() -> void:
 	if room_type != RoomType.AMBUSH:
@@ -515,6 +541,7 @@ func disarm_ambush() -> void:
 	room_type = RoomType.EMPTY
 	ambush_ready_to_disarm = false
 	_trap_checked_players.clear()
+	_ambush_ready_players.clear()
 
 func _clear_room_content() -> void:
 	if room_content and room_content.is_inside_tree():

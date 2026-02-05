@@ -211,19 +211,24 @@ func _update_room_ui_buttons() -> void:
 		return
 	_reset_button_states()
 	var player := _get_active_player()
+	var has_ap := _has_action_points(player)
 	if _tile_has_active_monster(_current_tile):
 		_set_button_state("MonsterFightButton", true)
-		_set_button_state("MonsterRunButton", _has_action_points(player))
+		_set_button_state("MonsterRunButton", has_ap)
 		return
 	match _current_tile.room_type:
 		Tile.RoomType.CHEST:
 			_set_button_state("ChestButton", true)
-			var can_explore := _has_action_points(player) and not _is_button_active("ChestButton")
+			var can_explore := has_ap and not _is_button_active("ChestButton")
 			_set_button_state("RoomExplore", can_explore)
 		Tile.RoomType.EMPTY:
-			_set_button_state("RoomExplore", _has_action_points(player))
-	if _current_tile.room_type == Tile.RoomType.AMBUSH and _current_tile.ambush_ready_to_disarm and player and player.action_points > GameConfig.MIN_ACTION_POINTS:
-		_set_button_state("AmbushDisarm", true)
+			_set_button_state("RoomExplore", has_ap)
+	if _current_tile.room_type == Tile.RoomType.AMBUSH and player:
+		var can_disarm := _current_tile.ambush_ready_to_disarm
+		if _current_tile.has_method("can_player_disarm_ambush"):
+			can_disarm = _current_tile.can_player_disarm_ambush(player)
+		if can_disarm and has_ap:
+			_set_button_state("AmbushDisarm", true)
 
 func _reset_button_states() -> void:
 	for button in _buttons.values():
