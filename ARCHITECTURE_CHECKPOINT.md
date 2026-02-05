@@ -7,3 +7,24 @@
 - Step 1.4: Registered `BATTLE_UI` with scene instantiation in `WindowRegistry.tres`, added `BattleUI.gd` script (group, show/hide animations), extended `UIWindowQueue` to instantiate from scene/parent and manage owned instances, and rerouted GameManager battle UI show/hide through the queue with legacy fallback.
 - Step 1.5: Added input block modes to `UIWindowQueue` (NONE/GAMEPLAY/FULL) with propagation via EventBus, and annotated window registry entries with appropriate block modes (PlayerUI NONE, RoomUI GAMEPLAY, DiceGameUI/BattleUI FULL).
 - Step 1.6: Added `INTRO_CUTSCENE` window (wrapper script + registry entry with FULL block, priority 1), extended UIWindowQueue to instantiate Script resources, and routed GameManager intro start through the queue with legacy fallback and signal wiring.
+- Step 2.1: Introduced `TurnService` singleton (players/active_player/current_day) and registered in autoload; GameManager now syncs registration, active player changes, turn order application, and current day updates into TurnService while keeping legacy flow operational.
+- Step 2.2: Added `PlayerService` singleton (player registry) to autoload and synced GameManager registration and turn-order application into it; currently passive registry to decouple player lists from GameManager.
+- Step 2.3: Added `GameStateMachine` singleton (state holder with state_changed signal) to autoload; GameManager now uses a property setter to sync all state assignments into this service, with initial sync on _ready and without altering legacy flow.
+- Step 3.1: Added `TileService` singleton (tile registry) and registered it in autoload; LevelManager now registers/clears tiles in the service while keeping existing tile map logic intact.
+- Step 3.2: Added `MovementService` singleton (stub move_player hook) to autoload; Player now consults the service before executing legacy move logic, enabling future migration while preserving current behavior.
+- Step 3.3: Reset transient movement flags per day — Player.reset_for_new_day now also clears last_moved_tile and _tile_combat_requested to avoid stale state between days.
+- Step 4.1: BattleStateMachine now mirrors state changes and completion into EventBus (`battle_state_changed_bus`, `battle_finished_bus`) while retaining existing callable dependencies and signals.
+- Step 4.2: Added `BattleService` singleton stub to autoload (battle context holder, start/finish hooks) to prepare for migrating battle orchestration out of GameManager; legacy flow untouched.
+- Step 5.1: Added `CameraService` singleton stub to autoload and wired GameManager to reference it; currently no-op to keep camera behavior unchanged, preparing for later migration.
+- Step 5.2: UIWindowQueue now caches EventBus on _ready for block-mode change emissions (input_block_changed) instead of looking it up each call; behavior unchanged, minor perf/robustness prep.
+- Step 6.1: Introduced `LevelGenerator` wrapper (generate delegating to LevelManager._generate_legacy_grid) and updated LevelManager to use it; LevelManager now owns a generator instance and retains legacy generation logic in a dedicated method; TileService registration preserved.
+- Step 6.2: Added `LevelConfig` resource and hooked LevelManager to sync/export it; LevelGenerator now accepts config and applies it via `_apply_config` before running legacy generation. Defaults mirror existing LevelManager export values.
+- Step 6.3: Created default `LevelConfig.tres`, exported config in LevelManager, and wired generator to accept config for future externalized level settings. No gameplay change yet.
+- Step 7.1: Added `InputService` singleton stub (block/unblock/is_blocked) to autoload as a placeholder for future centralized input handling; no gameplay behavior changed.
+- Step 7.2: InputService now subscribes to EventBus `input_block_changed` and updates its blocked_mode accordingly (still no input interception).
+- Step 7.3: GameManager now caches `InputService` autoload reference (no behavior change yet), prepping for future centralized input control.
+- Step 7.4: Added `get_block_mode()` helper to InputService to expose current block state (no behavior change).
+- Step 8.1: LevelManager now defaults its exported `level_config` to the shared `LevelConfig.tres`, keeping values consistent between code and resource by default.
+- Step 8.2: No-op placeholder (next step not defined) – awaiting plan continuation.
+- Step 8.2: Removed group-based node lookup; NodeLocator now resolves via explicit paths, and all usages (GameManager, LevelManager, UI, CameraDrag, Tile, Monster, PlayerManager) switched to NodeLocator helpers.
+- Step 8.3: Cached path debug materials in LevelManager to avoid reallocations when building or highlighting debug lines; no gameplay changes.

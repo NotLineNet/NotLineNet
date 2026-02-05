@@ -5,6 +5,7 @@ const IMAGE_DIR := "res://image/"
 const PORTRAIT_CONTAINER_PATH := "/root/Main/UI/MainHUD/Portraits/HBoxContainer"
 const MAIN_HUD_PATH := "/root/Main/UI/MainHUD"
 const PORTRAIT_SCENE := preload("res://scenes/ui/PlayerUI/PlayerHUDPortrait.tscn")
+const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 const PORTRAIT_ANIM_SHOW := "TurnShow"
 const PORTRAIT_ANIM_HIDE := "TurnHide"
 
@@ -238,7 +239,7 @@ func _get_game_manager() -> GameManager:
 	var tree := get_tree()
 	if not tree:
 		return null
-	return tree.get_first_node_in_group("game_manager") as GameManager
+	return NodeLocator.game_manager(tree)
 
 func _ensure_main_hud() -> void:
 	if _main_hud and is_instance_valid(_main_hud):

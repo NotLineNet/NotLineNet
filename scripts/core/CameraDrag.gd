@@ -1,6 +1,8 @@
 extends Node3D
 class_name CameraDrag
 
+const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
+
 # ===== ПАРАМЕТРЫ ДВИЖЕНИЯ =====
 @export var drag_speed: float = 0.05  # Базовая скорость скролла (используется если не указана в пресете)
 var current_drag_speed: float = 0.05  # Текущая скорость скролла (из пресета)
@@ -291,7 +293,7 @@ func _get_active_player() -> Player:
 	var tree := get_tree()
 	if not tree:
 		return null
-	var gm := tree.get_first_node_in_group("game_manager")
+	var gm := NodeLocator.game_manager(tree)
 	if not gm:
 		return null
 	return gm.get("active_player") as Player

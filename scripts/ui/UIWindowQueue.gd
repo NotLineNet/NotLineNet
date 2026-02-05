@@ -27,6 +27,7 @@ var registry: Resource
 var _active_windows: Dictionary = {}
 var _instances_owned: Dictionary = {}
 var _current_block_mode: String = "NONE"
+var _bus
 
 
 func _ready() -> void:
@@ -35,6 +36,7 @@ func _ready() -> void:
 	if registry == null:
 		push_warning("UIWindowQueue: registry is missing; using empty stub.")
 		registry = Resource.new()
+	_bus = get_tree().root.get_node_or_null("EventBus")
 
 
 func request_window(window_id: String, params: Dictionary = {}, priority: int = 0) -> Dictionary:
@@ -195,6 +197,5 @@ func _update_block_mode() -> void:
 
 
 func _emit_input_block_changed(mode: String) -> void:
-	var bus := get_tree().root.get_node_or_null("EventBus")
-	if bus and bus.has_method("emit"):
-		bus.emit("input_block_changed", mode)
+	if _bus and _bus.has_method("emit"):
+		_bus.emit("input_block_changed", mode)

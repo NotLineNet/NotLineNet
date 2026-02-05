@@ -37,7 +37,7 @@ var _active_player_index: int = -1
 var _intro_instance: IntroCutSceneController
 var _intro_started := false
 var _intro_completed := false
-var state: GameState = GameState.INIT
+var state: GameState = GameState.INIT : set = _set_state, get = _get_state
 var _dice_ui_instance
 var _battle_ui_instance
 var _turn_state_machine: TurnStateMachine
@@ -46,6 +46,12 @@ var _battle_in_progress := false
 var _battle_ctx: Dictionary = {}
 var _battle_choice_tile: Tile
 var _hand_ui: HandUI
+var _turn_service
+var _player_service
+var _state_machine
+var _state_internal: GameState = GameState.INIT
+var _camera_service
+var _input_service
 
 @onready var player_ui := get_node_or_null("../UI/PlayerUI")
 @onready var hud_ui := get_node_or_null("../UI/HUD(cheats)")
@@ -61,6 +67,12 @@ var _hand_ui: HandUI
 
 func _ready() -> void:
 	add_to_group("game_manager")
+	_turn_service = get_tree().root.get_node_or_null("TurnService")
+	_player_service = get_tree().root.get_node_or_null("PlayerService")
+	_state_machine = get_tree().root.get_node_or_null("GameStateMachine")
+	_camera_service = get_tree().root.get_node_or_null("CameraService")
+	_input_service = get_tree().root.get_node_or_null("InputService")
+	_sync_state_machine()
 	_update_day_label()
 	await get_tree().process_frame
 	_prepare_initial_ui_state()
@@ -472,6 +484,10 @@ func register_player(player: Player) -> void:
 	if players.has(player):
 		return
 	players.append(player)
+	if _turn_service:
+		_turn_service.register_player(player)
+	if _player_service:
+		_player_service.register_player(player)
 	player.add_to_group("player")
 	player.set_active(false)
 
@@ -507,6 +523,8 @@ func set_active_player(player: Player) -> void:
 		active_player.set_active(false)
 	active_player = player
 	_active_player_index = index
+	if _turn_service:
+		_turn_service.set_active_player(player)
 	active_player.set_active(true)
 	_connect_active_player_signals()
 	_on_active_player_action_points_changed(active_player.action_points)
@@ -521,6 +539,8 @@ func _clear_active_player() -> void:
 		active_player.set_active(false)
 	active_player = null
 	_active_player_index = -1
+	if _turn_service:
+		_turn_service.clear_active_player()
 	if _hand_ui:
 		_hand_ui.clear_cards(false)
 	emit_signal("active_player_changed", active_player)
@@ -973,6 +993,20 @@ func _play_animation_safe(anim_player: AnimationPlayer, anim_name: String) -> vo
 	await anim_player.animation_finished
 
 
+func _set_state(value: GameState) -> void:
+	_state_internal = value
+	_sync_state_machine()
+
+
+func _get_state() -> GameState:
+	return _state_internal
+
+
+func _sync_state_machine() -> void:
+	if _state_machine and _state_machine.has_method("set_state"):
+		_state_machine.set_state(_state_internal)
+
+
 func _play_camera_hit_animation(player_won: bool) -> void:
 	_ensure_camera_nodes()
 	if not camera_pivot:
@@ -1246,6 +1280,10 @@ func _apply_turn_order_from_rolls(rolls: Array) -> void:
 	if ordered_players.size() == 0:
 		return
 	players = ordered_players
+	if _turn_service:
+		_turn_service.set_players(players)
+	if _player_service:
+		_player_service.set_players(players)
 	if player_manager and player_manager.has_method("reorder_portraits"):
 		player_manager.reorder_portraits(players)
 	_clear_active_player()
@@ -1285,6 +1323,9 @@ func _start_day_cycle(increment_day: bool) -> void:
 	_log_state("игровой день")
 	if increment_day:
 		current_game_day += 1
+	if _turn_service:
+		_turn_service.set_current_day(current_game_day)
+		_turn_service.set_players(players)
 	_update_day_label()
 	_refill_player_action_points()
 	_revive_dead_players_for_new_day()
@@ -1346,5 +1387,5 @@ func _find_level_manager() -> LevelManager:
 		return level_manager
 	var tree := get_tree()
 	if tree:
-		level_manager = tree.get_first_node_in_group("level_manager") as LevelManager
+		level_manager = NodeLocator.level_manager(tree)
 	return level_manager

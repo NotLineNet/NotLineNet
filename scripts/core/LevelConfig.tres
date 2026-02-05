@@ -1,0 +1,11 @@
+[gd_resource type="LevelConfig" load_steps=2 format=3 uid="uid://level_config_default"]
+
+[ext_resource type="Script" path="res://scripts/core/LevelConfig.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+circle_radius = 9
+green_circle_radius = 5
+loop_connection_chance = 0.28
+max_deadend_ratio = 0.18
+monster_night_stay_chance = 0.1

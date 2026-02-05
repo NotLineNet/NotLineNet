@@ -24,6 +24,14 @@ config/icon="res://icon.svg"
 Directions="*res://scripts/core/Directions.gd"
 EventBus="*res://scripts/core/EventBus.gd"
 UIWindowQueue="*res://scripts/ui/UIWindowQueue.gd"
+TurnService="*res://scripts/core/TurnService.gd"
+PlayerService="*res://scripts/core/PlayerService.gd"
+GameStateMachine="*res://scripts/core/GameStateMachine.gd"
+TileService="*res://scripts/core/TileService.gd"
+MovementService="*res://scripts/core/MovementService.gd"
+BattleService="*res://scripts/core/BattleService.gd"
+CameraService="*res://scripts/core/CameraService.gd"
+InputService="*res://scripts/core/InputService.gd"
 
 [display]
 

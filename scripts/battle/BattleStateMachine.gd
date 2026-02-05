@@ -30,9 +30,11 @@ var _deps: Dictionary = {}
 var ctx: Dictionary = {}
 var _current_state_name: StateName = StateName.PREPARE_BATTLE
 var _running := false
+var _bus
 
 
 func _ready() -> void:
+	_bus = get_tree().root.get_node_or_null("EventBus")
 	_load_states()
 	set_process(true)
 
@@ -94,6 +96,7 @@ func _set_state(state_name: StateName) -> void:
 	if _current:
 		var label: String = STATE_LABELS.get(state_name, "Unknown")
 		emit_signal("state_changed", label, ctx)
+		_emit_bus("battle_state_changed_bus", {"state": label, "ctx": ctx.duplicate(true)})
 		_current.enter(ctx)
 
 
@@ -136,5 +139,12 @@ func finish_battle() -> void:
 	if not _running:
 		return
 	_running = false
-	emit_signal("battle_finished", ctx.duplicate(true))
+	var result := ctx.duplicate(true)
+	emit_signal("battle_finished", result)
+	_emit_bus("battle_finished_bus", result)
 	stop()
+
+
+func _emit_bus(event_name: String, payload: Dictionary) -> void:
+	if _bus and _bus.has_method("emit"):
+		_bus.emit(event_name, payload)

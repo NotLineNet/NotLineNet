@@ -3,6 +3,7 @@ class_name Monster
 
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
 const MonsterManager = preload("res://scripts/core/MonsterManager.gd")
+const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 
 signal moved_to_tile(new_tile: Tile)
 
@@ -68,4 +69,4 @@ func _find_monster_manager() -> MonsterManager:
 	var tree := get_tree()
 	if not tree:
 		return null
-	return tree.get_first_node_in_group("monster_manager") as MonsterManager
+	return NodeLocator.monster_manager(tree)

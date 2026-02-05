@@ -1,6 +1,7 @@
 extends Node3D
 class_name Tile
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
+const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 
 enum RoomType {
 	EMPTY,
@@ -246,7 +247,7 @@ func _get_game_manager() -> GameManager:
 	var tree := get_tree()
 	if not tree:
 		return null
-	return tree.get_first_node_in_group("game_manager") as GameManager
+	return NodeLocator.game_manager(tree)
 
 func _get_active_player() -> Player:
 	var gm := _get_game_manager()
@@ -258,7 +259,7 @@ func _get_level_manager() -> LevelManager:
 	var tree := get_tree()
 	if not tree:
 		return null
-	return tree.get_first_node_in_group("level_manager") as LevelManager
+	return NodeLocator.level_manager(tree)
 
 func wall_visual_for_direction(dir: Vector2i) -> int:
 	if not wall_assignments.has(dir):

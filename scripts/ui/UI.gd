@@ -1,5 +1,7 @@
 extends PanelContainer
 
+const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
+
 @onready var reload_button: Button = $HBoxContainer/ReloadButton
 @onready var way_button: Button = $HBoxContainer/WayButton
 @onready var start_button: Button = $HBoxContainer/StartButton
@@ -110,10 +112,10 @@ func _find_level_manager():
 	var tree := get_tree()
 	if not tree:
 		return
-	level_manager = tree.get_first_node_in_group("level_manager") as LevelManager
+	level_manager = NodeLocator.level_manager(tree)
 	if not level_manager:
 		await tree.process_frame
-		level_manager = tree.get_first_node_in_group("level_manager") as LevelManager
+		level_manager = NodeLocator.level_manager(tree)
 
 func _update_way_button_text():
 	if paths_visible:

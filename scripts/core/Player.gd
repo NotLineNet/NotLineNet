@@ -31,6 +31,7 @@ var _default_body_position: Vector3 = Vector3.ZERO
 var _tile_combat_requested := false
 var level: int = 1
 var cards: Array = []
+var _movement_service
 
 # Размер игрока - половина размера тайла (TILE_SIZE = 2.0, значит игрок = 1.0)
 const PLAYER_SIZE := 1.0
@@ -39,6 +40,7 @@ func _ready():
 	# Визуал берётся из сцены Player (Sprite3D). Если сцены нет — создаём сферу как запасной вариант
 	_create_player_visual()
 	_store_default_body_position()
+	_movement_service = get_tree().root.get_node_or_null("MovementService")
 	
 	# LevelManager будет установлен через initialize_on_tile()
 
@@ -152,6 +154,11 @@ func _attempt_move(dir: Vector2i, target_tile: Tile) -> void:
 	if visual == Tile.WallVisual.LOCKED_DOOR:
 		return
 
+	var handled := false
+	if _movement_service and _movement_service.has_method("move_player"):
+		handled = _movement_service.move_player(self, dir, target_tile)
+	if handled:
+		return
 	previous_tile = current_tile
 	move_to_tile(target_tile)
 
@@ -262,6 +269,8 @@ func refill_action_points():
 func reset_for_new_day():
 	"""Сбрасывает состояние на начало дня без изменения позиции"""
 	previous_tile = null
+	last_moved_tile = null
+	_tile_combat_requested = false
 
 func increase_level(amount: int = 1) -> bool:
 	if amount <= 0:

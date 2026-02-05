@@ -3,6 +3,10 @@ class_name LevelManager
 
 const GameConfig = preload("res://scripts/core/GameConfig.gd")
 const Directions = preload("res://scripts/core/Directions.gd")
+const LevelGenerator = preload("res://scripts/core/LevelGenerator.gd")
+const LevelConfig = preload("res://scripts/core/LevelConfig.gd")
+const DEFAULT_LEVEL_CONFIG := preload("res://scripts/core/LevelConfig.tres")
+const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 
 @export var tile_scene: PackedScene
 @export var player_scene: PackedScene
@@ -15,6 +19,7 @@ const Directions = preload("res://scripts/core/Directions.gd")
 @export var loop_connection_chance: float = 0.28
 @export var max_deadend_ratio: float = 0.18
 @export var monster_night_stay_chance: float = 0.1
+@export var level_config: LevelConfig = DEFAULT_LEVEL_CONFIG
 
 const TILE_SIZE := GameConfig.TILE_SIZE
 const DIRECTIONS: Array[Vector2i] = Directions.ALL
@@ -31,6 +36,9 @@ var tracked_active_player: Player
 var _player_moved_callable: Callable
 var _active_player_changed_callable: Callable
 var monsters: Array[Node3D] = []
+var _level_generator: LevelGenerator
+var _tile_service
+var _path_material_cache: Dictionary = {}
 
 func _ready():
 	randomize()
@@ -38,12 +46,19 @@ func _ready():
 	_active_player_changed_callable = Callable(self, "_on_active_player_changed")
 	_init_path_debug_root()
 	add_to_group("level_manager")
+	_tile_service = get_tree().root.get_node_or_null("TileService")
+	_level_generator = LevelGenerator.new()
 	create_grid()
 	_connect_game_manager_signals()
 
 # ===== СОЗДАНИЕ СЕТКИ =====
 
 func create_grid():
+	if _level_generator:
+		_level_generator.generate(self)
+
+
+func _generate_legacy_grid():
 	_clear_path_debug_lines()
 	_clear_tiles()
 	red_tile_pos = Vector2i.ZERO
@@ -106,11 +121,15 @@ func _clear_path_debug_lines():
 	path_debug_lines_built = false
 
 func _create_path_line_material(color: Color) -> StandardMaterial3D:
+	var key := str(color)
+	if _path_material_cache.has(key):
+		return _path_material_cache[key]
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.flags_transparent = true
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_path_material_cache[key] = material
 	return material
 
 func build_path_debug_lines():
@@ -395,6 +414,28 @@ func _clear_tiles() -> void:
 		if tile:
 			tile.queue_free()
 	tiles.clear()
+	if _tile_service:
+		_tile_service.clear()
+
+
+func _ensure_level_config() -> void:
+	if level_config == null:
+		level_config = LevelConfig.new()
+	level_config.circle_radius = circle_radius
+	level_config.green_circle_radius = green_circle_radius
+	level_config.loop_connection_chance = loop_connection_chance
+	level_config.max_deadend_ratio = max_deadend_ratio
+	level_config.monster_night_stay_chance = monster_night_stay_chance
+
+
+func _apply_config(cfg: LevelConfig) -> void:
+	if cfg == null:
+		return
+	circle_radius = cfg.circle_radius
+	green_circle_radius = cfg.green_circle_radius
+	loop_connection_chance = cfg.loop_connection_chance
+	max_deadend_ratio = cfg.max_deadend_ratio
+	monster_night_stay_chance = cfg.monster_night_stay_chance
 
 func _determine_green_exit_direction(green_pos: Vector2i) -> Vector2i:
 	var direction: Vector2i = _choose_green_exit_direction(green_pos)
@@ -600,6 +641,8 @@ func create_tile(pos: Vector2i) -> Tile:
 	tile.exit_clicked.connect(_on_exit_clicked)
 
 	tiles[pos] = tile
+	if _tile_service:
+		_tile_service.register_tile(pos, tile)
 	return tile
 
 # ===== УПРАВЛЕНИЕ ВИДИМОСТЬЮ ТАЙЛОВ =====
@@ -794,6 +837,4 @@ func _is_protected_tile(tile: Tile) -> bool:
 
 func _get_game_manager() -> GameManager:
 	var tree := get_tree()
-	if not tree:
-		return null
-	return tree.get_first_node_in_group("game_manager") as GameManager
+	return NodeLocator.game_manager(tree) if tree else null
