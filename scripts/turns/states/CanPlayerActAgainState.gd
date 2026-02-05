@@ -18,6 +18,7 @@ func enter(ctx: Dictionary) -> void:
 		return
 	var can_act = fsm.call_dep("can_player_act_again", [player])
 	if can_act:
+		await fsm.call_dep_await("wait_camera_centering_done")
 		fsm._set_state(TurnStateMachine.StateName.PLAYER_TURN)
 	else:
 		fsm._set_state(TurnStateMachine.StateName.PREPARE_END_TURN)

@@ -51,6 +51,8 @@ func request_window(window_id: String, params: Dictionary = {}, priority: int = 
 	var config := _get_window_config(window_id)
 	if config.is_empty():
 		return handle
+	var effective_priority: int = int(config.get("priority", priority))
+	_close_other_windows(window_id, effective_priority)
 	var singleton := bool(config.get("singleton", true))
 	if singleton and _active_windows.has(window_id):
 		var existing: Node = _active_windows[window_id]
@@ -59,7 +61,7 @@ func request_window(window_id: String, params: Dictionary = {}, priority: int = 
 		handle.status = STATUS.SHOWING
 		handle.instance = existing
 		return handle
-	var instance: Node = _resolve_window_instance(config)
+	var instance: Node = _resolve_window_instance(config, window_id)
 	if instance == null:
 		push_warning("UIWindowQueue: window '%s' instance not found." % window_id)
 		return handle
@@ -81,15 +83,20 @@ func close_window(window_id: String, result: Variant = null) -> void:
 	if _active_windows.has(window_id):
 		instance = _active_windows[window_id]
 	else:
-		instance = _resolve_window_instance(config)
+		var node_path_value = config.get("node_path", NodePath())
+		if node_path_value is String:
+			node_path_value = NodePath(node_path_value)
+		if node_path_value != NodePath():
+			config["node_path"] = node_path_value
+			instance = _resolve_window_instance(config, window_id)
 	if instance == null:
 		return
 	_hide_window(instance)
 	_active_windows.erase(window_id)
-	if _instances_owned.get(instance, false):
-		if instance.is_inside_tree():
-			instance.queue_free()
-		_instances_owned.erase(instance)
+	var owned: bool = bool(_instances_owned.get(instance, false))
+	_instances_owned.erase(instance)
+	if owned and instance.is_inside_tree():
+		instance.queue_free()
 	_update_block_mode()
 
 
@@ -107,14 +114,23 @@ func _get_window_config(window_id: String) -> Dictionary:
 	return {}
 
 
-func _resolve_window_instance(config: Dictionary) -> Node:
+func _resolve_window_instance(config: Dictionary, window_id: String = "") -> Node:
+	var tree := get_tree()
+	if not tree:
+		return null
 	var node_path_value = config.get("node_path", NodePath())
 	if node_path_value is String:
 		node_path_value = NodePath(node_path_value)
 	if node_path_value != NodePath():
-		var node := get_tree().root.get_node_or_null(node_path_value)
+		var node := tree.root.get_node_or_null(node_path_value)
 		if node:
 			return node
+	if window_id != "":
+		var group_name := "ui_window_%s" % window_id
+		var in_group := tree.get_nodes_in_group(group_name)
+		for node in in_group:
+			if node is Node and is_instance_valid(node) and node.is_inside_tree() and not node.is_queued_for_deletion():
+				return node
 	var scene_path: String = config.get("scene_path", "")
 	if scene_path != "":
 		var resource := load(scene_path)
@@ -122,12 +138,16 @@ func _resolve_window_instance(config: Dictionary) -> Node:
 			var packed: PackedScene = resource
 			var instance: Node = packed.instantiate()
 			var parent := _resolve_parent(config)
+			if "visible" in instance:
+				instance.visible = false
 			parent.add_child(instance)
 			return instance
 		elif resource is Script:
 			var script_instance: Node = resource.new()
 			if script_instance:
 				var parent := _resolve_parent(config)
+				if "visible" in script_instance:
+					script_instance.visible = false
 				parent.add_child(script_instance)
 				return script_instance
 	return null
@@ -208,3 +228,23 @@ func _update_block_mode() -> void:
 func _emit_input_block_changed(mode: String) -> void:
 	if _bus and _bus.has_method("emit"):
 		_bus.emit("input_block_changed", mode)
+
+
+func _close_other_windows(except_id: String, requested_priority: int) -> void:
+	var to_close: Array[String] = []
+	for id in _active_windows.keys():
+		if id == except_id:
+			continue
+		var cfg := _get_window_config(id)
+		var other_priority: int = int(cfg.get("priority", requested_priority))
+		# Разрешаем сосуществование PlayerUI и RoomUI (одно и то же "геймплейное" окно).
+		var is_player_room_pair: bool = ((id == "PLAYER_UI" and except_id == "ROOM_UI") or (id == "ROOM_UI" and except_id == "PLAYER_UI"))
+		if is_player_room_pair:
+			continue
+		# Закрываем, только если окно выше приоритетом или (равный приоритет и не разрешённая пара).
+		if other_priority > requested_priority:
+			to_close.append(id)
+		elif other_priority == requested_priority:
+			to_close.append(id)
+	for id in to_close:
+		close_window(id)

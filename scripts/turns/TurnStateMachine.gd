@@ -50,6 +50,8 @@ func set_dependencies(deps: Dictionary) -> void:
 	# - get_next_player: Callable(player) -> Player|Nil
 	# - set_active_player: Callable(player) -> void
 	# - wait_player_ui_hidden: Callable() -> awaitable void
+	# - dispose_player_ui: Callable() -> awaitable void
+	# - wait_camera_centering_done: Callable() -> awaitable void
 	_deps = deps
 
 

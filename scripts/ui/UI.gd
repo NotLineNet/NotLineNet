@@ -5,9 +5,9 @@ const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 @onready var reload_button: Button = $HBoxContainer/ReloadButton
 @onready var way_button: Button = $HBoxContainer/WayButton
 @onready var start_button: Button = $HBoxContainer/StartButton
-@onready var player_ui_action_points: HBoxContainer = $"../PlayerUI/PanelRoot/ActionPoints"
-@onready var button_finish: Button = $"../PlayerUI/PanelRoot/ButtonFinish"
-@onready var player_ui := $"../PlayerUI"
+var player_ui_action_points: HBoxContainer
+var button_finish: Button
+var player_ui: Control
 @onready var add_card_button: Button = $HBoxContainer/AddCardButton
 @onready var game_manager: GameManager = get_node_or_null("../../GameManager") as GameManager
 @onready var day_label: Label = $HBoxContainer/DayLabel
@@ -18,6 +18,7 @@ var _battle_active := false
 
 func _ready():
 	_find_level_manager()
+	_ensure_player_ui_refs()
 	way_button.pressed.connect(_on_way_button_pressed)
 	reload_button.pressed.connect(_on_reload_button_pressed)
 	if start_button:
@@ -47,6 +48,7 @@ func _on_battle_state_changed(active: bool) -> void:
 
 func _update_player_ui_action_points(count: int):
 	"""Скрывает/показывает ColorRect внутри AP нод в PlayerUI"""
+	_ensure_player_ui_refs()
 	if not player_ui_action_points:
 		return
 	var ap_nodes := player_ui_action_points.get_children()
@@ -59,6 +61,7 @@ func _update_player_ui_action_points(count: int):
 			color_rect.visible = i < count
 
 func _update_finish_button(count: int):
+	_ensure_player_ui_refs()
 	if not button_finish:
 		return
 	button_finish.visible = count == 0 and not _is_battle_active()
@@ -146,6 +149,7 @@ func _on_add_card_button_pressed() -> void:
 	if game_manager and game_manager.active_player and game_manager.has_method("grant_card_to_player"):
 		game_manager.grant_card_to_player(game_manager.active_player, card_data, true)
 		return
+	_ensure_player_ui_refs()
 	if not player_ui:
 		return
 	var hand: HandUI = player_ui.get_hand_ui()
@@ -160,3 +164,34 @@ func _on_start_button_pressed() -> void:
 func set_day_label(day: int) -> void:
 	if day_label:
 		day_label.text = "День %d" % day
+
+
+func bind_player_ui(instance: Control) -> void:
+	if not instance:
+		return
+	if player_ui == instance and is_instance_valid(player_ui):
+		return
+	player_ui = instance
+	player_ui_action_points = instance.get_node_or_null("PanelRoot/ActionPoints") as HBoxContainer
+	button_finish = instance.get_node_or_null("PanelRoot/ButtonFinish") as Button
+	if button_finish and not button_finish.pressed.is_connected(_on_button_finish_pressed):
+		button_finish.pressed.connect(_on_button_finish_pressed)
+	_update_finish_button(_get_active_action_points())
+
+
+func unbind_player_ui() -> void:
+	player_ui = null
+	player_ui_action_points = null
+	button_finish = null
+
+
+func _ensure_player_ui_refs() -> void:
+	if player_ui and is_instance_valid(player_ui):
+		return
+	var candidate := get_node_or_null("../PlayerUI") as Control
+	if not candidate:
+		player_ui = null
+		player_ui_action_points = null
+		button_finish = null
+		return
+	bind_player_ui(candidate)

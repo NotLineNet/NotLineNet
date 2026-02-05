@@ -24,6 +24,7 @@ func enter(ctx: Dictionary) -> void:
 		fsm.emit_signal("start_combat", player, monster)
 		return
 	ctx["force_prepare_end_turn"] = false
+	await fsm.call_dep_await("wait_camera_centering_done")
 	fsm._set_state(TurnStateMachine.StateName.PLAYER_TURN)
 	log(1)
 
@@ -42,6 +43,7 @@ func handle_event(event: StringName, data: Variant, ctx: Dictionary) -> void:
 	var player_died: bool = bool(payload.get("player_died", false))
 	if result == "win" or (result == "lose" and not player_died):
 		ctx["force_prepare_end_turn"] = false
+		await fsm.call_dep_await("wait_camera_centering_done")
 		fsm._set_state(TurnStateMachine.StateName.PLAYER_TURN)
 	elif result == "lose" and player_died:
 		ctx["force_prepare_end_turn"] = true

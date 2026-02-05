@@ -3,14 +3,15 @@
 [resource]
 windows = {
 "PLAYER_UI": {
-"node_path": NodePath("/root/Main/UI/PlayerUI"),
+"scene_path": "res://scenes/ui/PlayerUI.tscn",
+"parent_path": NodePath("/root/Main/UI"),
 "priority": 4,
 "singleton": true,
 "input_block_mode": "NONE"
 },
 "ROOM_UI": {
 "node_path": NodePath("/root/Main/UI/RoomUIController"),
-"priority": 3,
+"priority": 4,
 "singleton": true,
 "input_block_mode": "GAMEPLAY"
 },

@@ -46,6 +46,7 @@ var _battle_in_progress := false
 var _battle_ctx: Dictionary = {}
 var _battle_choice_tile: Tile
 var _hand_ui: HandUI
+var _player_ui_allowed := false
 var _turn_service
 var _player_service
 var _state_machine
@@ -92,7 +93,9 @@ func _init_turn_state_machine() -> void:
 		"get_next_player": Callable(self, "_get_next_player"),
 		"set_active_player": Callable(self, "set_active_player"),
 		"handle_prepare_end_turn": Callable(self, "_handle_prepare_end_turn"),
-		"wait_player_ui_hidden": Callable(self, "_wait_player_ui_hidden")
+		"wait_player_ui_hidden": Callable(self, "_wait_player_ui_hidden"),
+		"dispose_player_ui": Callable(self, "_dispose_player_ui"),
+		"wait_camera_centering_done": Callable(self, "_wait_for_camera_centering_done")
 	})
 	_turn_state_machine.connect("request_camera_center", Callable(self, "_on_turn_request_camera_center"))
 	_turn_state_machine.connect("show_player_ui", Callable(self, "_on_turn_show_player_ui"))
@@ -146,12 +149,38 @@ func _ui_window_queue() -> Node:
 	return tree.root.get_node_or_null("UIWindowQueue")
 
 
+func _notify_player_ui_bound(instance: Node) -> void:
+	if not instance:
+		return
+	var ui_root: Node = ui_layer if ui_layer else get_node_or_null("../UI")
+	if not ui_root:
+		return
+	var cheats_ui := ui_root.get_node_or_null("HUD(cheats)")
+	if cheats_ui and cheats_ui.has_method("bind_player_ui"):
+		cheats_ui.call("bind_player_ui", instance)
+	var room_controller := ui_root.get_node_or_null("RoomUIController")
+	if room_controller and room_controller.has_method("bind_player_ui"):
+		room_controller.call("bind_player_ui", instance)
+
+
+func _notify_player_ui_unbound() -> void:
+	var ui_root: Node = ui_layer if ui_layer else get_node_or_null("../UI")
+	if not ui_root:
+		return
+	var cheats_ui := ui_root.get_node_or_null("HUD(cheats)")
+	if cheats_ui and cheats_ui.has_method("unbind_player_ui"):
+		cheats_ui.call("unbind_player_ui")
+	var room_controller := ui_root.get_node_or_null("RoomUIController")
+	if room_controller and room_controller.has_method("unbind_player_ui"):
+		room_controller.call("unbind_player_ui")
+
+
 func _ensure_hand_ui() -> HandUI:
 	if _hand_ui and is_instance_valid(_hand_ui):
 		return _hand_ui
-	if not player_ui:
+	if not player_ui or not is_instance_valid(player_ui):
 		player_ui = get_node_or_null("../UI/PlayerUI")
-	if player_ui and player_ui.has_method("get_hand_ui"):
+	if player_ui and is_instance_valid(player_ui) and player_ui.has_method("get_hand_ui"):
 		_hand_ui = player_ui.get_hand_ui()
 	_connect_hand_signals()
 	return _hand_ui
@@ -282,9 +311,11 @@ func _on_turn_request_camera_center(player: Player) -> void:
 	_turn_state_machine.handle_event("camera_centered", player)
 
 func _on_turn_show_player_ui(player: Player) -> void:
-	_show_player_ui()
+	_player_ui_allowed = true
+	_show_player_ui(true)
 
 func _on_turn_hide_player_ui() -> void:
+	_player_ui_allowed = false
 	_hide_player_ui()
 
 func _on_turn_enable_player_input(player: Player) -> void:
@@ -569,9 +600,11 @@ func _on_active_player_action_points_changed(new_value: int) -> void:
 	emit_signal("active_player_action_points_changed", new_value)
 
 func _on_active_player_health_changed(new_value: int, old_value: int) -> void:
-	if not player_ui:
+	if not player_ui or not is_instance_valid(player_ui):
 		player_ui = get_node_or_null("../UI/PlayerUI")
-	if not player_ui:
+	if not player_ui or not is_instance_valid(player_ui):
+		return
+	if not player_ui.is_inside_tree():
 		return
 	var loss := old_value - new_value
 	if loss > 0:
@@ -597,21 +630,34 @@ func _revive_dead_players_for_new_day() -> void:
 			player.respawn_to_start_tile()
 			player.pending_respawn = false
 
-func _show_player_ui() -> void:
-	if not player_ui:
-		player_ui = get_node_or_null("../UI/PlayerUI")
-	_refresh_player_display()
-	var handled_via_queue := false
+func _show_player_ui(force: bool = false) -> void:
+	if not force and not _player_ui_allowed:
+		return
 	var queue := _ui_window_queue()
+	var handled_via_queue := false
 	if queue and queue.has_method("request_window"):
 		var handle = queue.request_window("PLAYER_UI")
 		if handle.has("instance") and handle.instance:
 			player_ui = handle.instance
 		if handle.get("status", "") != "FAILED":
 			handled_via_queue = true
+	if not player_ui or not is_instance_valid(player_ui):
+		player_ui = get_node_or_null("../UI/PlayerUI")
+	if player_ui and not is_instance_valid(player_ui):
+		player_ui = null
+	if not player_ui and not handled_via_queue:
+		var fallback_scene: PackedScene = load("res://scenes/ui/PlayerUI.tscn") as PackedScene
+		if fallback_scene:
+			var parent_node: Node = ui_layer if ui_layer else self
+			player_ui = fallback_scene.instantiate()
+			if parent_node and player_ui:
+				parent_node.add_child(player_ui)
+	if player_ui and is_instance_valid(player_ui):
+		_notify_player_ui_bound(player_ui)
+		_refresh_player_display()
 	if handled_via_queue:
 		return
-	if player_ui:
+	if player_ui and is_instance_valid(player_ui):
 		var should_ensure := false
 		if player_ui.has_method("get_animation_player"):
 			var ap = player_ui.call("get_animation_player")
@@ -625,20 +671,28 @@ func _show_player_ui() -> void:
 			player_ui.show_player_ui()
 
 func _hide_player_ui() -> void:
-	var handled_via_queue := false
 	var queue := _ui_window_queue()
 	if queue and queue.has_method("close_window"):
 		queue.close_window("PLAYER_UI")
-		handled_via_queue = true
-	if handled_via_queue:
-		return
-	if not player_ui:
+	if not player_ui or not is_instance_valid(player_ui):
 		player_ui = get_node_or_null("../UI/PlayerUI")
-	if player_ui:
+	if player_ui and is_instance_valid(player_ui) and player_ui.visible:
 		player_ui.hide_player_ui()
 
+
+func _dispose_player_ui() -> void:
+	_player_ui_allowed = false
+	_hide_player_ui()
+	await _wait_player_ui_hidden()
+	if player_ui and is_instance_valid(player_ui):
+		if player_ui.is_inside_tree():
+			player_ui.queue_free()
+	player_ui = null
+	_hand_ui = null
+	_notify_player_ui_unbound()
+
 func _restore_player_ui_if_hidden(should_restore: bool) -> void:
-	if should_restore:
+	if should_restore and _player_ui_allowed:
 		_show_player_ui()
 
 
@@ -665,18 +719,18 @@ func _refresh_player_display() -> void:
 	_refresh_player_cards_display()
 
 func _refresh_player_health_display() -> void:
-	if not player_ui:
+	if not player_ui or not is_instance_valid(player_ui):
 		player_ui = get_node_or_null("../UI/PlayerUI")
-	if not player_ui or not active_player:
+	if not player_ui or not is_instance_valid(player_ui) or not active_player:
 		return
 	player_ui.set_health_icons(active_player.health_points)
 	player_ui.reset_pending_hp_loss()
 	_refresh_player_level_display()
 
 func _refresh_player_level_display() -> void:
-	if not player_ui:
+	if not player_ui or not is_instance_valid(player_ui):
 		player_ui = get_node_or_null("../UI/PlayerUI")
-	if not player_ui or not active_player:
+	if not player_ui or not is_instance_valid(player_ui) or not active_player:
 		return
 	if player_ui.has_method("set_level"):
 		player_ui.set_level(active_player.level)
@@ -1044,32 +1098,38 @@ func _wait_for_camera_centering_done() -> void:
 
 
 func _wait_player_ui_hidden() -> void:
-	if not player_ui:
+	if not player_ui or not is_instance_valid(player_ui):
 		player_ui = get_node_or_null("../UI/PlayerUI")
-	if not player_ui:
+	if not player_ui or not is_instance_valid(player_ui):
+		player_ui = null
 		return
 	var guard := 0
-	while player_ui.visible:
+	while player_ui and is_instance_valid(player_ui) and player_ui.visible:
 		await get_tree().process_frame
 		guard += 1
 		if guard > 120: # ~2 секунды при 60 fps
 			break
+	if player_ui and not is_instance_valid(player_ui):
+		player_ui = null
 
 
 func _wait_player_ui_shown() -> void:
-	if not player_ui:
+	if not player_ui or not is_instance_valid(player_ui):
 		player_ui = get_node_or_null("../UI/PlayerUI")
-	if not player_ui:
+	if not player_ui or not is_instance_valid(player_ui):
+		player_ui = null
 		return
 	if player_ui.has_method("wait_for_show_complete"):
 		await player_ui.wait_for_show_complete()
 		return
 	var guard := 0
-	while not player_ui.visible:
+	while player_ui and is_instance_valid(player_ui) and not player_ui.visible:
 		await get_tree().process_frame
 		guard += 1
 		if guard > 120:
 			break
+	if player_ui and not is_instance_valid(player_ui):
+		player_ui = null
 
 func _run_monster_battle(player: Player, monster: Monster) -> Array:
 	var participants_data: Array = []

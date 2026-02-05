@@ -30,11 +30,8 @@ func _ready():
 
 func show_player_ui():
 	_log("show start")
-	visible = true
 	_show_animation_playing = true
-	if anim:
-		_log("anim Show start")
-		anim.play("PlayerUI_Show")
+	_play_show_animation()
 
 
 func ensure_shown():
@@ -42,11 +39,8 @@ func ensure_shown():
 	_log("ensure_shown")
 	if anim and anim.is_playing() and anim.current_animation == "PlayerUI_Hide":
 		anim.stop()
-	visible = true
 	_show_animation_playing = true
-	if anim:
-		_log("anim Show start (ensure)")
-		anim.play("PlayerUI_Show")
+	_play_show_animation(true)
 
 func hide_player_ui():
 	_log("hide start")
@@ -157,6 +151,16 @@ func _on_visibility_changed() -> void:
 
 func _log(msg: String) -> void:
 	print("%s: %s" % [_log_prefix, msg])
+
+
+func _play_show_animation(reset_first_frame: bool = false) -> void:
+	if anim:
+		if reset_first_frame:
+			anim.stop()
+		_log("anim Show start%s" % (" (ensure)" if reset_first_frame else ""))
+		anim.play("PlayerUI_Show")
+		anim.advance(0.0) # применяем первый кадр до показа, чтобы избежать вспышки
+	visible = true
 
 func set_level(value: int) -> void:
 	if not level_label:

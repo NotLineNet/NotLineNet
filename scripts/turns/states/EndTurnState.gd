@@ -14,11 +14,11 @@ func enter(ctx: Dictionary) -> void:
 		return
 	var next_player = fsm.call_dep("get_next_player", [current_player])
 	ctx["next_player"] = next_player
+	fsm.emit_signal("disable_player_input")
+	await fsm.call_dep_await("dispose_player_ui")
 	if not next_player:
 		fsm.emit_signal("turns_completed")
 		return
-	fsm.emit_signal("disable_player_input")
-	fsm.emit_signal("hide_player_ui")
 	fsm.emit_signal("request_camera_center", next_player)
 
 

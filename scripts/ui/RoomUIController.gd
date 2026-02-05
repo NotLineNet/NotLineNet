@@ -42,9 +42,7 @@ func _ready() -> void:
 	if _game_manager:
 		_connect_game_manager_signals()
 		_connect_player_signals(_game_manager.active_player)
-	_finish_button = get_parent().get_node_or_null("PlayerUI/PanelRoot/ButtonFinish") as Button
-	if _finish_button and not _finish_button.is_connected("pressed", Callable(self, "_on_finish_button_pressed")):
-		_finish_button.pressed.connect(Callable(self, "_on_finish_button_pressed"))
+	_ensure_finish_button()
 	_ensure_camera_nodes()
 
 func _process(_delta: float) -> void:
@@ -139,6 +137,31 @@ func _on_action_points_changed(_value: int) -> void:
 
 func _on_finish_button_pressed() -> void:
 	_close_room_ui_via_queue()
+
+
+func bind_player_ui(instance: Node) -> void:
+	if not instance:
+		return
+	_finish_button = instance.get_node_or_null("PanelRoot/ButtonFinish") as Button
+	if _finish_button and not _finish_button.pressed.is_connected(Callable(self, "_on_finish_button_pressed")):
+		_finish_button.pressed.connect(Callable(self, "_on_finish_button_pressed"))
+
+
+func unbind_player_ui() -> void:
+	_finish_button = null
+
+
+func _ensure_finish_button() -> void:
+	if _finish_button and is_instance_valid(_finish_button):
+		return
+	var parent := get_parent()
+	if not parent:
+		return
+	var player_ui := parent.get_node_or_null("PlayerUI")
+	if player_ui:
+		_finish_button = player_ui.get_node_or_null("PanelRoot/ButtonFinish") as Button
+		if _finish_button and not _finish_button.pressed.is_connected(Callable(self, "_on_finish_button_pressed")):
+			_finish_button.pressed.connect(Callable(self, "_on_finish_button_pressed"))
 
 func _show_room_ui_for_tile(tile: Tile) -> void:
 	if not tile or not _player_turn_active:
