@@ -5,6 +5,33 @@ windows = {
 "PLAYER_UI": {
 "node_path": NodePath("/root/Main/UI/PlayerUI"),
 "priority": 4,
-"singleton": true
+"singleton": true,
+"input_block_mode": "NONE"
+},
+"ROOM_UI": {
+"node_path": NodePath("/root/Main/UI/RoomUIController"),
+"priority": 3,
+"singleton": true,
+"input_block_mode": "GAMEPLAY"
+},
+"DICE_GAME_UI": {
+"node_path": NodePath("/root/Main/UI/DiceGameUI"),
+"priority": 2,
+"singleton": false,
+"input_block_mode": "FULL"
+},
+"BATTLE_UI": {
+"scene_path": "res://scenes/ui/BattleUI.tscn",
+"parent_path": NodePath("/root/Main/UI"),
+"priority": 2,
+"singleton": true,
+"input_block_mode": "FULL"
+},
+"INTRO_CUTSCENE": {
+"scene_path": "res://scripts/ui/IntroCutSceneWrapper.gd",
+"parent_path": NodePath("/root/Main/UI"),
+"priority": 1,
+"singleton": true,
+"input_block_mode": "FULL"
 }
 }

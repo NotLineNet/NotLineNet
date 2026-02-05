@@ -1,6 +1,8 @@
 extends Control
 class_name DiceGameUI
 
+const WINDOW_ID := "DICE_GAME_UI"
+
 signal lottery_finished(results: Array)
 
 const PlayerDicier = preload("res://scripts/ui/PlayerDicier.gd")
@@ -21,6 +23,7 @@ var _confirmation_action: String = ""
 @onready var debug_lose_button: Button = $DebugControls/LoseButton
 
 func _ready() -> void:
+	add_to_group("ui_window_%s" % WINDOW_ID)
 	if next_button:
 		next_button.pressed.connect(Callable(self, "_on_next_button_pressed"))
 		next_button.visible = false
@@ -76,7 +79,23 @@ func run_battle(players_data: Array) -> Array:
 		await _play_animation_safe("UI_Hide")
 
 	_clear_dicier_nodes()
-	queue_free()
+	return results
+
+
+# UIWindowQueue integration
+func prepare(params: Dictionary) -> void:
+	var data := params.get("participants", [])
+	if data is Array:
+		_last_players_data = []
+		# store for potential debug
+		for entry in data:
+			if entry is Dictionary:
+				_last_players_data.append(entry.duplicate(true) as Dictionary)
+
+
+func show_animated() -> void:
+	# For queue-driven show, no-op; actual flow happens inside run_battle/run_lottery.
+	pass
 	return results
 
 func _spawn_dicier_nodes(players_data: Array) -> void:

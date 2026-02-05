@@ -7,6 +7,7 @@ const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 const Player = preload("res://scripts/core/Player.gd")
 const Tile = preload("res://scripts/core/Tile.gd")
 const RoomUI = preload("res://scenes/ui/RoomUI.tscn")
+const WINDOW_ID := "ROOM_UI"
 
 var _game_manager: GameManager
 var _room_ui_instance: Control
@@ -25,8 +26,10 @@ var _exit_connected_tile: Tile
 var _finish_button: Button
 var _camera_root: CameraDrag
 var _camera: Camera3D
+var _pending_tile: Tile
 
 func _ready() -> void:
+	add_to_group("ui_window_%s" % WINDOW_ID)
 	set_process(true)
 	_moved_callable = Callable(self, "_on_player_moved_to_tile")
 	_movement_started_callable = Callable(self, "_on_player_movement_started")
@@ -98,7 +101,7 @@ func _on_player_turn_started(player: Player) -> void:
 		player.current_tile.mark_trap_checked_for_player(player)
 	if player and not player.is_moving:
 		_update_exit_connection(player.current_tile)
-		_show_room_ui_for_tile(player.current_tile)
+		_request_room_ui_for_tile(player.current_tile)
 	if player and player.current_tile and player.current_tile.room_type == Tile.RoomType.AMBUSH:
 		# Do not trigger trap re-check as player started on trap
 		_update_room_ui_buttons()
@@ -120,26 +123,26 @@ func _on_player_moved_to_tile(tile: Tile) -> void:
 	if not _player_turn_active:
 		return
 	if tile and _tile_has_active_monster(tile) and _tracked_player:
-		_clear_room_ui()
+		_close_room_ui_via_queue()
 		if _game_manager and _game_manager.has_method("is_battle_active") and not _game_manager.is_battle_active():
 			if _game_manager.has_method("start_monster_battle"):
 				_game_manager.start_monster_battle(_tracked_player, tile.occupying_monster, true)
 		return
 	_update_exit_connection(tile)
-	_show_room_ui_for_tile(tile)
+	_request_room_ui_for_tile(tile)
 
 func _on_player_movement_started() -> void:
-	_clear_room_ui()
+	_close_room_ui_via_queue()
 
 func _on_action_points_changed(_value: int) -> void:
 	_update_room_ui_buttons()
 
 func _on_finish_button_pressed() -> void:
-	_clear_room_ui()
+	_close_room_ui_via_queue()
 
 func _show_room_ui_for_tile(tile: Tile) -> void:
 	if not tile or not _player_turn_active:
-		_clear_room_ui()
+		_close_room_ui_via_queue()
 		return
 	if _current_tile == tile and _room_ui_instance:
 		_update_room_ui_buttons()
@@ -244,7 +247,7 @@ func _on_player_ready_after_battle(player: Player) -> void:
 		return
 	if not player or player != _tracked_player:
 		return
-	_show_room_ui_for_tile(player.current_tile)
+	_request_room_ui_for_tile(player.current_tile)
 
 func _on_trap_check_completed(tile: Tile, success: bool) -> void:
 	if not _player_turn_active:
@@ -344,7 +347,7 @@ func _disconnect_tile_exit() -> void:
 func _on_tile_exit_requested(_tile: Tile, _dir: Vector2i) -> void:
 	if not _player_turn_active:
 		return
-	_clear_room_ui()
+	_close_room_ui_via_queue()
 
 func _ensure_camera_nodes() -> void:
 	if _camera_root and is_instance_valid(_camera_root):
@@ -391,16 +394,53 @@ func enter_battle_mode(player: Player) -> void:
 	_connect_player_signals(player)
 	if player and not player.is_moving:
 		_update_exit_connection(player.current_tile)
-		_show_room_ui_for_tile(player.current_tile)
+		_request_room_ui_for_tile(player.current_tile)
 
 
 func exit_battle_mode() -> void:
 	if not _battle_mode:
 		return
-	_clear_room_ui()
+	_close_room_ui_via_queue()
 	_player_turn_active = _battle_previous_turn_state
 	_battle_mode = false
 
 
 func hide_room_ui() -> void:
 	_clear_room_ui()
+
+# UIWindowQueue integration
+func prepare(params: Dictionary) -> void:
+	_pending_tile = params.get("tile", null)
+
+
+func ensure_shown() -> void:
+	if _pending_tile:
+		_show_room_ui_for_tile(_pending_tile)
+		_pending_tile = null
+	elif _current_tile:
+		_show_room_ui_for_tile(_current_tile)
+
+
+func show_room_ui() -> void:
+	ensure_shown()
+
+
+func _request_room_ui_for_tile(tile: Tile) -> void:
+	_pending_tile = tile
+	var queue := _queue()
+	if queue and queue.has_method("request_window"):
+		queue.request_window(WINDOW_ID, {"tile": tile}, 3)
+		return
+	_show_room_ui_for_tile(tile)
+
+
+func _close_room_ui_via_queue() -> void:
+	var queue := _queue()
+	if queue and queue.has_method("close_window"):
+		queue.close_window(WINDOW_ID)
+	else:
+		_clear_room_ui()
+
+
+func _queue() -> Node:
+	return get_tree().root.get_node_or_null("UIWindowQueue")

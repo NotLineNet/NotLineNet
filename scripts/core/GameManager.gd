@@ -324,6 +324,8 @@ func start_intro() -> void:
 	_log_state("кат сцена")
 	_prepare_intro_ui()
 	_prepare_intro_camera()
+	if _start_intro_via_queue():
+		return
 	_spawn_intro_cutscene()
 	if _intro_instance:
 		_intro_instance.ensure_camera_current()
@@ -372,6 +374,23 @@ func _spawn_intro_cutscene() -> void:
 		return
 	_intro_instance = instance
 	get_parent().add_child(instance)
+
+
+func _start_intro_via_queue() -> bool:
+	var queue := _ui_window_queue()
+	if not queue or not queue.has_method("request_window"):
+		return false
+	var handle = queue.request_window("INTRO_CUTSCENE", {}, 1)
+	if handle.get("status", "") == "FAILED":
+		return false
+	var instance: Node = handle.get("instance", null)
+	if not instance:
+		return true
+	if instance.has_method("intro_animation_finished"):
+		var signal_obj = instance
+		if signal_obj and signal_obj.has_signal("intro_animation_finished") and not signal_obj.intro_animation_finished.is_connected(_on_intro_cutscene_finished):
+			signal_obj.intro_animation_finished.connect(_on_intro_cutscene_finished, Object.CONNECT_ONE_SHOT)
+	return true
 
 func _on_intro_cutscene_finished() -> void:
 	intro_finished()
@@ -604,7 +623,10 @@ func _restore_player_ui_if_hidden(should_restore: bool) -> void:
 
 
 func _hide_room_ui() -> void:
-	if room_ui_controller and room_ui_controller.has_method("hide_room_ui"):
+	var queue := _ui_window_queue()
+	if queue and queue.has_method("close_window"):
+		queue.close_window("ROOM_UI")
+	elif room_ui_controller and room_ui_controller.has_method("hide_room_ui"):
 		room_ui_controller.call("hide_room_ui")
 
 func _update_day_label() -> void:
@@ -807,10 +829,10 @@ func _dep_show_battle_ui(battle_type: String) -> void:
 	_ensure_camera_nodes()
 	# Не ждём завершения центрирования — бой может стартовать сразу,
 	# камера доедет сама.
-	_set_player_input_enabled(false)
-	if camera_root:
-		camera_root.set_input_enabled(false)
-	await _show_battle_ui()
+		_set_player_input_enabled(false)
+		if camera_root:
+			camera_root.set_input_enabled(false)
+		await _show_battle_ui(battle_type)
 
 
 func _dep_hide_battle_ui() -> void:
@@ -898,9 +920,23 @@ func _finish_battle(result_ctx: Dictionary) -> void:
 	_battle_choice_tile = null
 
 
-func _show_battle_ui() -> void:
-	if _battle_ui_instance:
+func _show_battle_ui(battle_type: String = "") -> void:
+	if _battle_ui_instance and is_instance_valid(_battle_ui_instance):
+		var anim_player := _battle_ui_instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
+		await _play_animation_safe(anim_player, "BattleShow")
 		return
+	var queue := _ui_window_queue()
+	if queue and queue.has_method("request_window"):
+		var handle = queue.request_window("BATTLE_UI", {"battle_type": battle_type}, 2)
+		var instance: Node = handle.get("instance", null)
+		if instance:
+			_battle_ui_instance = instance
+			var anim_player := instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
+			if anim_player and anim_player.has_animation("RESET"):
+				anim_player.play("RESET")
+			await _play_animation_safe(anim_player, "BattleShow")
+			return
+	# Fallback legacy instantiation
 	var scene_to_use := battle_ui_scene
 	if not scene_to_use:
 		scene_to_use = preload(BATTLE_UI_SCENE_PATH)
@@ -919,11 +955,12 @@ func _show_battle_ui() -> void:
 
 
 func _hide_battle_ui() -> void:
-	if not _battle_ui_instance:
-		return
-	var anim_player := _battle_ui_instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
-	await _play_animation_safe(anim_player, "BattleHide")
-	_battle_ui_instance.queue_free()
+	if _battle_ui_instance and is_instance_valid(_battle_ui_instance):
+		var anim_player := _battle_ui_instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
+		await _play_animation_safe(anim_player, "BattleHide")
+	var queue := _ui_window_queue()
+	if queue and queue.has_method("close_window"):
+		queue.close_window("BATTLE_UI")
 	_battle_ui_instance = null
 
 
@@ -1004,6 +1041,19 @@ func _run_monster_battle(player: Player, monster: Monster) -> Array:
 	var participants_data: Array = []
 	participants_data.append(_build_battle_participant_data(player))
 	participants_data.append(_build_battle_participant_data(monster))
+	var queue := _ui_window_queue()
+	if queue and queue.has_method("request_window"):
+		var handle = queue.request_window("DICE_GAME_UI", {"participants": participants_data, "mode": "battle"}, 2)
+		var instance = handle.get("instance", null)
+		if instance and instance.has_method("run_battle"):
+			_hide_player_ui()
+			var results: Array = await instance.run_battle(participants_data)
+			_apply_master_bonus(results, true)
+			if queue.has_method("close_window"):
+				queue.close_window("DICE_GAME_UI")
+			_restore_player_ui_if_hidden(true)
+			return results.size() == 0 ? _generate_rolls_from_data(participants_data, true) : results
+	# Fallback to legacy instantiation
 	if not dice_game_ui_scene:
 		return _generate_rolls_from_data(participants_data, true)
 	var ui_instance := dice_game_ui_scene.instantiate()
@@ -1020,8 +1070,10 @@ func _run_monster_battle(player: Player, monster: Monster) -> Array:
 		_dice_ui_instance = null
 	else:
 		results = _generate_rolls_from_data(participants_data, true)
-	_dice_ui_instance = null
+		_dice_ui_instance = null
 	_restore_player_ui_if_hidden(true)
+	if ui_instance and ui_instance.is_inside_tree():
+		ui_instance.queue_free()
 	if results.size() == 0:
 		return _generate_rolls_from_data(participants_data, true)
 	return results

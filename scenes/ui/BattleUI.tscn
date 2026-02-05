@@ -1,4 +1,6 @@
-[gd_scene format=3 uid="uid://diei510rxfqkl"]
+[gd_scene format=3 uid="uid://diei510rxfqkl" ext_resources=1]
+
+[ext_resource type="Script" path="res://scripts/ui/BattleUI.gd" id="1"]
 
 [sub_resource type="Animation" id="Animation_lwc4m"]
 resource_name = "BattleHide"
@@ -90,6 +92,7 @@ _data = {
 }
 
 [node name="BattleUI" type="Control" unique_id=1348373513]
+script = ExtResource("1")
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
