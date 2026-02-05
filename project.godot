@@ -22,6 +22,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 Directions="*res://scripts/core/Directions.gd"
+EventBus="*res://scripts/core/EventBus.gd"
 
 [display]
 
