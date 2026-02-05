@@ -96,9 +96,8 @@ func close_window(window_id: String, result: Variant = null) -> void:
 func _get_window_config(window_id: String) -> Dictionary:
 	if registry == null:
 		return {}
-	var windows: Dictionary = registry.get("windows") if registry.has_method("get") else {}
-	if windows == null:
-		windows = {}
+	var windows_variant = registry.get("windows") if registry.has_method("get") else {}
+	var windows: Dictionary = windows_variant if windows_variant is Dictionary else {}
 	if not windows.has(window_id):
 		push_warning("UIWindowQueue: window_id '%s' not registered." % window_id)
 		return {}

@@ -5,7 +5,6 @@ const GameConfig = preload("res://scripts/core/GameConfig.gd")
 const Directions = preload("res://scripts/core/Directions.gd")
 const LevelGenerator = preload("res://scripts/core/LevelGenerator.gd")
 const LevelConfig = preload("res://scripts/core/LevelConfig.gd")
-const DEFAULT_LEVEL_CONFIG := preload("res://scripts/core/LevelConfig.tres")
 const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 
 @export var tile_scene: PackedScene
@@ -19,7 +18,7 @@ const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 @export var loop_connection_chance: float = 0.28
 @export var max_deadend_ratio: float = 0.18
 @export var monster_night_stay_chance: float = 0.1
-@export var level_config: LevelConfig = DEFAULT_LEVEL_CONFIG
+@export var level_config: LevelConfig
 
 const TILE_SIZE := GameConfig.TILE_SIZE
 const DIRECTIONS: Array[Vector2i] = Directions.ALL
