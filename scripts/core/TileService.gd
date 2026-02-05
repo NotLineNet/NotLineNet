@@ -1,5 +1,4 @@
 extends Node
-class_name TileService
 
 # Registry for tiles by grid position.
 

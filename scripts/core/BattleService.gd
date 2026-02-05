@@ -1,5 +1,4 @@
 extends Node
-class_name BattleService
 
 # Placeholder battle coordinator to decouple battle orchestration from GameManager.
 

@@ -1,5 +1,4 @@
 extends Node
-class_name PlayerService
 
 # Simple registry for players. Intended to decouple player data access from GameManager.
 

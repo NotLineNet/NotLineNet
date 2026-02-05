@@ -1,5 +1,4 @@
 extends Node
-class_name TurnService
 
 # Centralized turn state holder. Source of truth for players, active player, and current day.
 

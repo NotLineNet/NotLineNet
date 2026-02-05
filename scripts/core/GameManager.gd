@@ -849,10 +849,10 @@ func _dep_show_battle_ui(battle_type: String) -> void:
 	_ensure_camera_nodes()
 	# Не ждём завершения центрирования — бой может стартовать сразу,
 	# камера доедет сама.
-		_set_player_input_enabled(false)
-		if camera_root:
-			camera_root.set_input_enabled(false)
-		await _show_battle_ui(battle_type)
+	_set_player_input_enabled(false)
+	if camera_root:
+		camera_root.set_input_enabled(false)
+	await _show_battle_ui(battle_type)
 
 
 func _dep_hide_battle_ui() -> void:
@@ -1086,7 +1086,9 @@ func _run_monster_battle(player: Player, monster: Monster) -> Array:
 			if queue.has_method("close_window"):
 				queue.close_window("DICE_GAME_UI")
 			_restore_player_ui_if_hidden(true)
-			return results.size() == 0 ? _generate_rolls_from_data(participants_data, true) : results
+			if results.size() == 0:
+				return _generate_rolls_from_data(participants_data, true)
+			return results
 	# Fallback to legacy instantiation
 	if not dice_game_ui_scene:
 		return _generate_rolls_from_data(participants_data, true)

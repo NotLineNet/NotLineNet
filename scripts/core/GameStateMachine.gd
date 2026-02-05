@@ -1,5 +1,4 @@
 extends Node
-class_name GameStateMachine
 
 signal state_changed(new_state)
 

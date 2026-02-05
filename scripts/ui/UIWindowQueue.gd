@@ -27,7 +27,7 @@ var registry: Resource
 var _active_windows: Dictionary = {}
 var _instances_owned: Dictionary = {}
 var _current_block_mode: String = "NONE"
-var _bus
+var _bus: Node = null
 
 
 func _ready() -> void:
@@ -40,7 +40,7 @@ func _ready() -> void:
 
 
 func request_window(window_id: String, params: Dictionary = {}, priority: int = 0) -> Dictionary:
-	var handle := {
+	var handle: Dictionary = {
 		"window_id": window_id,
 		"params": params,
 		"priority": priority,
@@ -53,13 +53,13 @@ func request_window(window_id: String, params: Dictionary = {}, priority: int = 
 		return handle
 	var singleton := bool(config.get("singleton", true))
 	if singleton and _active_windows.has(window_id):
-		var existing := _active_windows[window_id]
+		var existing: Node = _active_windows[window_id]
 		_prepare_window(existing, params)
 		_show_window(existing)
 		handle.status = STATUS.SHOWING
 		handle.instance = existing
 		return handle
-	var instance := _resolve_window_instance(config)
+	var instance: Node = _resolve_window_instance(config)
 	if instance == null:
 		push_warning("UIWindowQueue: window '%s' instance not found." % window_id)
 		return handle
@@ -77,7 +77,11 @@ func close_window(window_id: String, result: Variant = null) -> void:
 	var config := _get_window_config(window_id)
 	if config.is_empty():
 		return
-	var instance := _active_windows.get(window_id, _resolve_window_instance(config))
+	var instance: Node = null
+	if _active_windows.has(window_id):
+		instance = _active_windows[window_id]
+	else:
+		instance = _resolve_window_instance(config)
 	if instance == null:
 		return
 	_hide_window(instance)
@@ -92,7 +96,9 @@ func close_window(window_id: String, result: Variant = null) -> void:
 func _get_window_config(window_id: String) -> Dictionary:
 	if registry == null:
 		return {}
-	var windows := registry.get("windows", {})
+	var windows: Dictionary = registry.get("windows") if registry.has_method("get") else {}
+	if windows == null:
+		windows = {}
 	if not windows.has(window_id):
 		push_warning("UIWindowQueue: window_id '%s' not registered." % window_id)
 		return {}
@@ -115,13 +121,13 @@ func _resolve_window_instance(config: Dictionary) -> Node:
 		var resource := load(scene_path)
 		if resource is PackedScene:
 			var packed: PackedScene = resource
-			var instance := packed.instantiate()
+			var instance: Node = packed.instantiate()
 			var parent := _resolve_parent(config)
 			parent.add_child(instance)
 			return instance
 		elif resource is Script:
-			var script_instance := resource.new()
-			if script_instance is Node:
+			var script_instance: Node = resource.new()
+			if script_instance:
 				var parent := _resolve_parent(config)
 				parent.add_child(script_instance)
 				return script_instance
@@ -129,9 +135,13 @@ func _resolve_window_instance(config: Dictionary) -> Node:
 
 
 func _resolve_parent(config: Dictionary) -> Node:
-	var parent_path := config.get("parent_path", NodePath())
-	if parent_path is String:
-		parent_path = NodePath(parent_path)
+	var parent_path: NodePath = NodePath()
+	if config.has("parent_path"):
+		var raw_parent = config["parent_path"]
+		if raw_parent is String:
+			parent_path = NodePath(raw_parent)
+		elif raw_parent is NodePath:
+			parent_path = raw_parent
 	if parent_path != NodePath():
 		var node := get_tree().root.get_node_or_null(parent_path)
 		if node:
@@ -178,14 +188,14 @@ func _hide_window(window: Node) -> void:
 
 
 func _update_block_mode() -> void:
-	var max_mode_value := INPUT_BLOCK["NONE"]
+	var max_mode_value: int = INPUT_BLOCK["NONE"]
 	for window_id in _active_windows.keys():
 		var cfg := _get_window_config(window_id)
 		var mode_name: String = cfg.get("input_block_mode", "NONE")
-		var mode_value := INPUT_BLOCK.get(mode_name, 0)
+		var mode_value: int = INPUT_BLOCK.get(mode_name, 0)
 		if mode_value > max_mode_value:
 			max_mode_value = mode_value
-	var new_mode := "NONE"
+	var new_mode: String = "NONE"
 	for key in INPUT_BLOCK.keys():
 		if INPUT_BLOCK[key] == max_mode_value:
 			new_mode = key

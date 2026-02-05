@@ -1,5 +1,4 @@
 extends Node
-class_name CameraService
 
 # Placeholder camera coordinator to decouple camera control from GameManager/CameraDrag later.
 # Currently no-op; legacy camera flow remains unchanged.

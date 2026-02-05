@@ -84,19 +84,17 @@ func run_battle(players_data: Array) -> Array:
 
 # UIWindowQueue integration
 func prepare(params: Dictionary) -> void:
-	var data := params.get("participants", [])
-	if data is Array:
-		_last_players_data = []
-		# store for potential debug
-		for entry in data:
-			if entry is Dictionary:
-				_last_players_data.append(entry.duplicate(true) as Dictionary)
+	var data: Array = params.get("participants", []) as Array
+	_last_players_data = []
+	# store for potential debug
+	for entry in data:
+		if entry is Dictionary:
+			_last_players_data.append(entry.duplicate(true) as Dictionary)
 
 
 func show_animated() -> void:
 	# For queue-driven show, no-op; actual flow happens inside run_battle/run_lottery.
 	pass
-	return results
 
 func _spawn_dicier_nodes(players_data: Array) -> void:
 	if not players_container:

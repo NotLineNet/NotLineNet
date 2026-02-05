@@ -1,5 +1,4 @@
 extends Node
-class_name MovementService
 
 # Placeholder movement coordinator.
 # Returns true if it handles movement externally; false to let caller fall back.

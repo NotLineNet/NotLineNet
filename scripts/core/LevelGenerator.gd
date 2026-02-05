@@ -4,7 +4,7 @@ class_name LevelGenerator
 var config
 
 
-func generate(target, cfg := null):
+func generate(target, cfg = null):
 	config = cfg if cfg != null else config
 	if target and target.has_method("_apply_config") and config:
 		target._apply_config(config)

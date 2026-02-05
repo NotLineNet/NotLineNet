@@ -1,5 +1,4 @@
 extends Node
-class_name InputService
 
 # Placeholder for centralized input handling.
 # Currently no-op to avoid changing gameplay behavior.
