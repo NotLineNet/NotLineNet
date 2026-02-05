@@ -2,7 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://dvkaj2qyjh086" path="res://image/hero_icon_1.png" id="1_lv2tr"]
 [ext_resource type="Script" uid="uid://bymx7rn3u51ry" path="res://scripts/ui/PlayerUI.gd" id="1_v5h85"]
-[ext_resource type="PackedScene" path="res://scenes/ui/HandUI.tscn" id="3_1f1if"]
+[ext_resource type="PackedScene" uid="uid://d0uc2tmkjwv4b" path="res://scenes/ui/HandUI.tscn" id="3_1f1if"]
 
 [sub_resource type="Animation" id="Animation_32b3b"]
 resource_name = "PlayerUI_Hide"
@@ -88,6 +88,19 @@ offset_bottom = 0.009353638
 grow_horizontal = 2
 grow_vertical = 2
 
+[node name="HandUI" parent="PanelRoot" unique_id=1815063043 node_paths=PackedStringArray("play_zone") instance=ExtResource("3_1f1if")]
+layout_mode = 1
+play_zone = NodePath("../../PlayZone")
+
+[node name="Diller" type="Control" parent="PanelRoot/HandUI" unique_id=2133492604]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+grow_horizontal = 2
+
+[node name="Marker2D" type="Marker2D" parent="PanelRoot/HandUI/Diller" unique_id=559651805]
+
 [node name="BG" type="ColorRect" parent="PanelRoot" unique_id=239231917]
 layout_mode = 1
 anchors_preset = 15
@@ -95,7 +108,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.3019608)
+color = Color(0, 0, 0, 0.7647059)
 
 [node name="Avatar" type="Sprite2D" parent="PanelRoot" unique_id=1240300210]
 texture = ExtResource("1_lv2tr")
@@ -231,10 +244,6 @@ label_settings = SubResource("LabelSettings_v5h85")
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="HandUI" parent="PanelRoot" unique_id=1815063043 node_paths=PackedStringArray("play_zone") instance=ExtResource("3_1f1if")]
-layout_mode = 1
-play_zone = NodePath("../../PlayZone")
-
 [node name="PlayZone" type="Control" parent="." unique_id=1298553277]
 layout_mode = 1
 anchors_preset = 8
@@ -258,4 +267,4 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(1, 0, 1, 0.047058824)
+color = Color(0.07182524, 0.7338765, 0.5063069, 0.047058824)

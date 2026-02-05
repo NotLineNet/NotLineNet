@@ -1,27 +1,27 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://d0uc2tmkjwv4b"]
 
-[ext_resource type="Script" path="res://scripts/ui/HandUI.gd" id="1_1"]
-[ext_resource type="Script" path="res://scripts/ui/HandLayoutController.gd" id="2_2"]
+[ext_resource type="Script" uid="uid://bmwd8rfwr8xb" path="res://scripts/ui/HandUI.gd" id="1_1"]
+[ext_resource type="Script" uid="uid://7udx7jls8mp6" path="res://scripts/ui/HandLayoutController.gd" id="2_2"]
 
-[node name="HandUI" type="Control"]
+[node name="HandUI" type="Control" unique_id=1219047349]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_top = -260.0
-offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
 script = ExtResource("1_1")
 
-[node name="CardsContainer" type="Control" parent="."]
+[node name="CardsContainer" type="Control" parent="." unique_id=2072384894]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 
-[node name="LayoutController" type="Node" parent="."]
+[node name="LayoutController" type="Node" parent="." unique_id=1525078142]
 script = ExtResource("2_2")
