@@ -4,6 +4,410 @@
 ---
 ## ПРАВИЛА ОБНОВЛЕНИЯ
 
+При обновлении документа фиксируйте версию в истории. Если структура или сущности меняются, рядом отражайте новое состояние. Храним только текущую и предыдущую версии, более старые удаляем.
+
+---
+
+## 1. ОПРЕДЕЛЕНИЕ ИГРЫ
+
+**Жанр:** Пошаговая тактическая игра-roguelike на процедурно-генерируемой сетке тайлов.  
+**Суть:** До трёх игроков по очереди проходят лабиринт из тайлов, тратя очки действий (ОД) на переходы. Цель — выйти со стартовых зелёных тайлов к финальному красному тайлу.
+
+---
+
+## 2. СТРУКТУРА СЦЕН ПРОЕКТА
+
+### Иерархия основной сцены (Main.tscn):
+```
+Main (Node3D)
+├── GameManager (Node3D) — оркестратор состояния, боёв и ходов
+├── LevelManager (Node3D) — генерация уровня и тайлов
+├── PlayerManager (Node3D) — визуал игроков и портреты
+├── LevelRoot (Node3D) — контейнер тайлов
+├── PlayerRoot (Node3D) — контейнер игроков
+├── CameraRoot (Node3D)
+│   └── CameraPivot (Node3D) + Camera3D
+└── UI (CanvasLayer)
+    ├── HUD(cheats) — нижняя панель
+    ├── PlayerUI (инстанс PlayerUI.tscn) — панель активного игрока
+    ├── MainHUD — портреты и основная информация
+    └── вспомогательные контроллеры (RoomUIController и др.)
+```
+
+### Инстанцируемые сцены:
+- **Player.tscn** — узел игрока (Sprite3D + опциональная подсветка/анимации)
+- **Tile.tscn** — тайл (MeshInstance3D, Area3D, BaseRoom, стены)
+- **PlayerUI.tscn** — панель игрока (HP, уровень, HandUI, анимации появления/скрытия)
+- **BattleUI.tscn** — боевая панель
+- **DiceGameUI.tscn** — интерфейс броска костей для боя/лотерей
+- **IntroCutScene.tscn** — вступительная кат-сцена
+
+---
+
+## 3. ПОТОК ВЫПОЛНЕНИЯ ИГРЫ (GAME FLOW)
+
+### Этапы жизненного цикла
+```
+INIT
+  ↓ (LevelManager._ready → generate)
+game_loaded_full() [GameManager]
+  ↓
+start_intro() → IntroCutScene
+  ↓ (intro_animation_finished)
+game_started()
+  ↓
+_start_draw_lots(increment_day=false) — жеребьёвка порядка
+  ↓
+_start_day_cycle(increment_day=false)
+  ├─ state = DAY, рефилл ОД (3)
+  ├─ активный игрок = players[0], камера follow + пресет 0
+  └─ TurnStateMachine.start_for_player(active_player)
+      PrepareTurn → CheckPlayerTurn → PlayerTurn → CanPlayerActAgain → PrepareEndTurn → EndTurn
+      └─ turns_completed → ночь
+  ↓ (в рамках дня могут запускаться бои через start_monster_battle)
+_start_night_cycle()
+  ├─ state = NIGHT, скрытие PlayerUI
+  ├─ камера на красный тайл, ввод выключен
+  ├─ LevelManager.move_monsters_at_night() с шансом остаться
+  └─ пауза NIGHT_DELAY → _start_draw_lots(increment_day=true) → новый день
+```
+
+### Бой внутри цикла
+- CheckPlayerTurn вызывает start_monster_battle, если на тайле есть монстр или тайл ранее пометил combat_request.
+- GameManager переводит state = BATTLE, ждёт BattleStateMachine, после завершения возвращает DAY и шлёт `combat_resolved` в TurnStateMachine.
+
+---
+
+## 4. РОЛЬ И ОТВЕТСТВЕННОСТЬ КАЖДОГО КОМПОНЕНТА
+
+### GameManager (главный оркестратор)
+**Файл:** `scripts/core/GameManager.gd`  
+**Роль:** Управление состоянием игры, днями/ночами, ходами игроков, боевой FSM, UI и вводом.
+
+**Ключевые данные и сервисы:**
+- `state: GameState` (INIT, INTRO, DRAW_LOTS, DAY, BATTLE, SWITCHING_TURN, NIGHT, WAITING_NEW_DAY)
+- `players`, `active_player`, `_active_player_index`
+- `_turn_state_machine`, `_battle_state_machine`
+- `_battle_ctx`, `_battle_in_progress`, `_battle_choice_tile`
+- `_player_ui_allowed` — флаг допуска показа PlayerUI
+- Ссылки на UI (`player_ui`, `ui_layer`, `main_hud`), менеджеры (`LevelManager`, `PlayerManager`), камеры (`CameraRoot`), сервисы (`TurnService`, `PlayerService`, `InputService`, `CameraService`)
+
+**Основные методы:**
+- `game_loaded_full()` → стартует intro
+- `game_started()` → включает UI, запускает жеребьёвку
+- `_start_draw_lots()` → бросок костей для порядка хода
+- `_start_day_cycle()` / `_start_night_cycle()` → переключение дня/ночи, камера и UI
+- `register_player(player)` → добавляет игрока, прокидывает в сервисы
+- `set_active_player(player)` / `_clear_active_player()` → управление активным и сигналами
+- `request_player_finish_turn()` → передаёт событие в TurnStateMachine
+- `start_monster_battle(player, monster, from_tile)` → готовит контекст, ставит BATTLE, ждёт BattleStateMachine
+- `_finish_battle(ctx)` → восстанавливает DAY, выдаёт карты при победе, оповещает TurnStateMachine
+- UI-хелперы: `_show_player_ui(force)`, `_hide_player_ui()`, `_wait_player_ui_hidden()`, `_wait_player_ui_shown()`, `_show_battle_ui()/_hide_battle_ui()`
+
+**Сигналы:**
+- `active_player_changed`, `active_player_action_points_changed`, `new_player_started_moving`
+- `gameplay_started`, `player_turn_finished`, `battle_state_changed`, `player_ready_after_battle`
+
+### BattleStateMachine (боевая FSM)
+**Файл:** `scripts/battle/BattleStateMachine.gd`  
+**Роль:** Шесть фаз боя, каждая — узел-состояние. Контекст хранится в `ctx` и прокидывается через зависимости.
+
+**Состояния:**
+- **PrepareBattle:** отключает ввод, настраивает UI боя. Если `battle_type == "Внезапный"` → `DiceCheck`, иначе → `PlayerChoice`.
+- **DiceCheck:** скрывает PlayerUI/RoomUI, отключает ввод, вызывает `run_dice_game(player, monster, restore_player_ui=false)`, сохраняет броски.
+- **PreparePlayerChoice:** проигрывает удар камерой; если игрок выиграл — помечает `monster_defeated` и идёт в `PrepareEndBattle`; иначе наносит 1 урон игроку, при смерти тоже идёт к завершению, иначе → `PlayerChoice`.
+- **PlayerChoice:** включает ввод, показывает PlayerUI/RoomUI (двойной вызов show для страховки), ждёт событие `player_choice` (`fight` → `DiceCheck`, `run` → `apply_run_penalty` и `PrepareEndBattle`).
+- **PrepareEndBattle:** скрывает PlayerUI если не бег, вызывает `handle_monster_death` или `handle_player_death`, ждёт `hide_battle_ui`, затем → `EndBattle`.
+- **EndBattle:** вызывает `finalize_battle(ctx)` и закрывает бой через `finish_battle()` GameManager.
+
+**Зависимости (`set_dependencies`):**
+`show_battle_ui`, `hide_battle_ui`, `enter_battle_room_ui`, `exit_battle_room_ui`, `disable_player_input`, `enable_player_input`, `play_camera_hit`, `run_dice_game(player, monster, restore_player_ui:=true)`, `apply_player_damage`, `apply_run_penalty`, `handle_monster_death`, `handle_player_death`, `finalize_battle`.
+
+### LevelManager (генератор уровня)
+**Файл:** `scripts/core/LevelManager.gd`  
+**Роль:** Создание сетки тайлов, соединений, спавн игроков, ночное движение монстров, отладочная визуализация путей.
+
+**Генерация (legacy grid):**
+1. Готовит `LevelConfig` (circle_radius=9, green_circle_radius=5, loop_connection_chance=0.28, max_deadend_ratio=0.18, monster_night_stay_chance=0.1).
+2. Создаёт красный тайл в (0,0), помечает пустым room, forbid_locked_exits для зелёных.
+3. Строит кольцевой слой тайлов радиуса `circle_radius`.
+4. Выбирает до 3 зелёных позиций по окружности (fallback — одна точка справа), красит их зелёным, для каждой строит малый круг `green_circle_radius`.
+5. Строит connection_map: BFS от красного с учётом требуемого выхода у зелёных, затем добавляет связи с красным и догоняет непосещённые. Добавляет петли (`loop_connection_chance`) и сокращает количество тупиков (`max_deadend_ratio`).
+6. Применяет соединения к тайлам, перерисовывает маркеры выходов.
+7. Показывает только красный и зелёные тайлы, остальные скрывает.
+8. Спавнит до 3 игроков на зелёных тайлах (перемешивание), регистрирует их в GameManager/сервисах.
+
+**Отладка путей:** PathLines (BoxMesh) рисуются между связанными тайлами, можно подсветить кратчайший путь активного игрока к красному.
+
+**Ночь:** `move_monsters_at_night()` двигает зарегистрированных монстров на открытые соседние тайлы с шансом остаться (`monster_night_stay_chance`).
+
+### Player (логика движения и состояния)
+**Файл:** `scripts/core/Player.gd`  
+**Роль:** Перемещение по тайлам, здоровье, уровень, взаимодействие с дверями/монстрами.
+
+**Ключевое:**
+- AP: MAX=3, MIN=0; здоровье стартовое = 3; уровень 1..10.
+- `move_to_tile` анимирует перемещение (0.2s, cubic), камеру (0.3s, задержка 0.05s), тратит 1 ОД, включает подсветку тайла и раскрывает его.
+- Учёт дверей: если визуал стены = DOOR → тратит ОД и ломает дверь (без движения); LOCKED_DOOR блокирует.
+- `mark_tile_combat_requested()/consume_tile_combat_request()` — флаг боя, инициированного тайлом.
+- События: `action_points_changed`, `moved_to_tile`, `movement_started`, `health_changed`, `level_changed`.
+- Возврат: `move_back()` если есть previous_tile и игрок активен.
+- Урон/анимации: `take_damage`, `play_ambush_damage_animation`.
+
+### Tile (логика тайла)
+**Файл:** `scripts/core/Tile.gd`  
+**Роль:** Маркеры выходов, стены, помещение контента (монстр/сундук/засада), визуал.
+
+**Данные и константы:**
+- RoomType: EMPTY, CHEST, AMBUSH, MONSTER. Вес по умолчанию: MONSTER=1, остальные=0 (честы/засады фактически не генерятся).
+- WALL_VISUAL: BLOCKED, DOOR, LOCKED_DOOR, OPENED. Шансы: door_wall_chance=0.15, locked_wall_chance=0.05.
+- Маркеры: размер 0.3, offset 0.9, scale 1.0/1.2, цвета активный/неактивный из GameConfig.
+
+**Поведение:**
+- `redraw_exit_markers()` создаёт Area3D маркеры (input_ray_pickable=true) по exits.
+- `exit_clicked(tile, dir)` сигнал по клику на маркер; `tile_clicked` по клику на тело тайла.
+- `on_player_entered()/on_player_exited()` меняют цвет маркеров.
+- Room контент: MONSTER/AMBUSH/CHEST сцены подгружаются при назначении; `occupying_monster` блокирует выходы; амбуш-флаги (ambush_ready_to_disarm) поддерживаются, но веса по умолчанию не активны.
+- Стены подбираются из WALL_SCENE_FOR_VISUAL, есть forbid_locked_exits для зелёных.
+
+### CameraDrag (камера)
+**Файл:** `scripts/core/CameraDrag.gd`  
+**Роль:** Зум, перетаскивание, центрирование на игроке.
+
+**Настройки:**
+- 4 зум-пресета: (Y,Z,rot_x,FOV) = (8,0,-30,70), (6,0,-35,60), (4,0,-40,50), (2,0,-45,40); drag_speed по умолчанию 0.05 (пресет может переопределять).
+- zoom_speed=5.0, camera_center_speed=3.0, auto_center_on_start=true.
+- Пресет 0 — привязка к активному игроку, RKM перетаскивание заблокировано.
+
+### PlayerManager (визуал игроков)
+**Файл:** `scripts/core/PlayerManager.gd`  
+**Роль:** Подтягивает текстуры/иконки из метаданных сцены (`PlayersViewParams`), обновляет PlayerUI (имя, аватар), управляет портретами MainHUD (анимации TurnShow/TurnHide), выделяет активного.
+
+### UI / PlayerUI
+**Файлы:** `scripts/ui/PlayerUI.gd` (+ HandUI), HUD/Room контроллеры  
+**Роль:** Отображение HP, уровня, руки карт, анимации появления/скрытия.
+
+**Поведение:**
+- Группируется как окно `PLAYER_UI`, show/hide через AnimationPlayer (`PlayerUI_Show/Hide`), есть `ensure_shown` для отмены Hide-анимации.
+- HP и уровень обновляются по сигналам GameManager; очередь анимации потери HP.
+- HandUI управляется GameManager (`_ensure_hand_ui`, сохранение/восстановление карт активного).
+- Доступ к показу контролируется `_player_ui_allowed` в GameManager; при запросе через UIWindowQueue есть fallback на прямую инстанциацию.
+
+### IntroCutScene (вступление)
+**Файл:** `scripts/ui/IntroCutScene.gd`  
+**Роль:** Отдельная камера и анимация `intro_camera_out`; по завершении эмитит `intro_animation_finished`, GameManager переносит состояние камеры в основную.
+
+---
+
+## 5. МЕХАНИКИ ИГРЫ
+
+### 5.1 Очки действий (ОД)
+- Старт: 3 ОД в начале дня (`_start_day_cycle` рефилл всех).
+- Трата: 1 ОД за переход на соседний тайл (если стена не дверь/замок).
+- Блокировки: если ОД <= 0 или is_moving или игрок не активен — переходы игнорируются.
+
+### 5.2 Система ходов (TurnStateMachine)
+- Цикл: PrepareTurn (центрирование камеры, скрыть UI) → CheckPlayerTurn (проверка монстра, запуск боя) → PlayerTurn (показ UI, включить ввод) → CanPlayerActAgain (если можно — назад в PlayerTurn, иначе PrepareEndTurn) → PrepareEndTurn (скрыть UI, отключить ввод, дождаться смерти при необходимости) → EndTurn (центрирование камеры на следующего игрока, dispose UI).  
+- Событие завершения хода приходит из UI через `request_player_finish_turn()` → `player_requested_finish`.
+- Если игроков больше нет → `turns_completed` → ночной цикл.
+
+### 5.3 Визуальная обратная связь тайлов
+- Активный тайл окрашивает маркеры в зелёный, неактивный — серый.
+- Наведение увеличивает маркер (1.0 → 1.2).
+- Скрытые тайлы могут оставаться кликабельными через маркеры, так как input_ray_pickable не меняется.
+
+### 5.4 Анимация движения
+```
+Клик на выход →
+  - move_to_tile (0.2s, cubic)
+  - камера follow с задержкой 0.05s и длительностью 0.3s
+  - current_tile ← target_tile, show_tile()
+  - spend_action_point(), emit moved_to_tile
+```
+
+### 5.5 Боевая система
+- **Запуск:** GameManager.start_monster_battle(player, monster, from_tile). battle_type = "Обычный", если вызвано с тайла; иначе "Внезапный". state → BATTLE, сигнал `battle_state_changed(true)`.
+- **Фазы:** PrepareBattle → (Внезапный: DiceCheck, Обычный: PlayerChoice) → PreparePlayerChoice → PlayerChoice → (fight → DiceCheck, run → PrepareEndBattle) → PrepareEndBattle → EndBattle.
+- **DiceCheck:** вызывает `run_dice_game` (через UIWindowQueue для DICE_GAME_UI или fallback инстанс/генерация). PlayerUI не восстанавливается после броска, восстановление выполняет `PlayerChoice`, чтобы не мигать между фазами.
+- **Выбор игрока:** `fight` ведёт к повторному DiceCheck; `run` применяет `_apply_run_away_penalty` (анимация урона, -1 HP, разблокировка тайла для монстра).
+- **Завершение:** PrepareEndBattle обрабатывает смерть монстра/игрока, прячет BattleUI, EndBattle вызывает `finalize_battle`, GameManager `_finish_battle` возвращает DAY, может выдать карту победителю и оповестить TurnStateMachine (`combat_resolved`, `player_death_animation_finished` при смерти).
+
+### 5.6 UI боя и игрока
+- PlayerUI показывается через GameManager `_show_player_ui` (гейт `_player_ui_allowed`), может быть запрошен через UIWindowQueue `PLAYER_UI` или создан напрямую.
+- BattleUI запрашивается через UIWindowQueue `BATTLE_UI` (fallback — инстансация сцены); скрытие через анимацию `BattleHide`.
+- DiceGameUI запрашивается через UIWindowQueue `DICE_GAME_UI` (fallback — `dice_game_ui_scene`), мастер-бонус вычисляется по уровню участника.
+
+---
+
+## 6. ГЕНЕРАЦИЯ ТАЙЛОВ
+
+### Алгоритм соединений (legacy)
+```
+1) Создать красный тайл (0,0), построить окружность радиуса circle_radius.
+2) Выбрать до 3 зелёных позиций на окружности; для каждой построить малый круг green_circle_radius, запретить закрытые выходы.
+3) Собрать карту соседей; BFS от красного с учётом требуемых направлений зелёных → connection_map.
+4) Добавить связи с красным по всем доступным направлениям.
+5) Для непосещённых тайлов добавить хотя бы одну связь к соседу.
+6) Добавить петли с шансом loop_connection_chance (если не special tile).
+7) Сократить тупики до max_deadend_ratio от общего числа тайлов.
+8) Применить connection_map к exits тайлов; перерисовать маркеры.
+```
+
+### Инварианты
+- Красный тайл в центре (0,0).
+- Зелёные — стартовые, forbid_locked_exits=true.
+- Выходы двусторонние, максимум 4 на тайл.
+- Все тайлы достижимы от красного (BFS + доп. связи).
+
+---
+
+## 7. КРИТИЧЕСКИЕ ЗАВИСИМОСТИ И УЗКИЕ МЕСТА
+
+### Взаимозависимости
+```
+GameManager
+  ├─ LevelManager (группа level_manager / NodeLocator.level_manager)
+  ├─ CameraRoot (группа camera_root)
+  ├─ TurnService / PlayerService / InputService / CameraService (по именам в root)
+  ├─ TurnStateMachine (внутренний узел)
+  └─ BattleStateMachine (внутренний узел)
+
+TurnStateMachine deps:
+  get_monster_on_tile, can_player_act_again, get_next_player,
+  set_active_player, handle_prepare_end_turn,
+  wait_player_ui_hidden, dispose_player_ui, wait_camera_centering_done
+
+BattleStateMachine deps:
+  show_battle_ui, hide_battle_ui,
+  enter_battle_room_ui, exit_battle_room_ui,
+  disable_player_input, enable_player_input,
+  play_camera_hit, run_dice_game,
+  apply_player_damage, apply_run_penalty,
+  handle_monster_death, handle_player_death, finalize_battle
+
+LevelManager
+  ├─ tile_scene / player_scene export
+  └─ опциональный TileService для регистрации тайлов
+```
+
+### Точки отказа
+1. Отсутствуют callable зависимости (Turn/Battle FSM) → FSM застревают (нет переходов/ввода/UI).
+2. UIWindowQueue отсутствует или не отдаёт инстансы → есть fallback, но без него не будет анимаций BattleUI/DiceGameUI.
+3. Недостаточно зелёных тайлов (fallback = 1) → игроков разместят меньше, чем total_players.
+4. Скрытые тайлы остаются кликабельными (input_ray_pickable=true) → можно открыть невидимый тайл.
+5. Камера/узлы UI не найдены → GameManager молча пропустит обновления (get_node_or_null), сложнее дебажить.
+
+---
+
+## 8. КОНСТАНТЫ
+
+### Время / анимации
+| Значение | Место | Эффект |
+|----------|-------|--------|
+| 0.2s | GameConfig.PLAYER_MOVE_DURATION | Длительность шага |
+| 0.3s | GameConfig.CAMERA_MOVE_DURATION | Длительность движения камеры |
+| 0.05s | GameConfig.CAMERA_DELAY | Отставание камеры |
+| 2.0s | GameConfig.TURN_SWITCH_DELAY | Пауза между ходами (используется FSM/сервисами) |
+| 2.0s | GameConfig.NIGHT_DELAY | Пауза ночи перед новым днём |
+
+### Генерация уровня
+| Значение | Место | Эффект |
+|----------|-------|--------|
+| 9 | LevelManager.circle_radius | Радиус красного круга |
+| 5 | LevelManager.green_circle_radius | Радиус окружностей зелёных |
+| 0.28 | loop_connection_chance | Шанс добавить петлю |
+| 0.18 | max_deadend_ratio | Целевой максимум тупиков |
+| 0.1 | monster_night_stay_chance | Шанс, что монстр не двинется ночью |
+
+### Визуал тайлов
+| Значение | Место |
+|----------|-------|
+| 4 | GameConfig.TILE_SIZE |
+| 0.3 | GameConfig.EXIT_MARKER_SIZE |
+| 0.9 | GameConfig.EXIT_OFFSET |
+| 1.2 / 1.0 | GameConfig.HOVER_SCALE / NORMAL_SCALE |
+| Color(0.2,1,0.2) | GATE_COLOR_ACTIVE |
+| Color(0.5,0.5,0.5) | GATE_COLOR_INACTIVE |
+| 0.15 | Tile.door_wall_chance |
+| 0.05 | Tile.locked_wall_chance |
+
+### Камера
+| Пресет | Y,Z | rot_x | FOV | drag_speed |
+|--------|-----|-------|-----|------------|
+| 0 | 8,0 | -30 | 70 | 0.05 |
+| 1 | 6,0 | -35 | 60 | 0.05 (по умолчанию) |
+| 2 | 4,0 | -40 | 50 | 0.05 |
+| 3 | 2,0 | -45 | 40 | 0.05 |
+
+### База
+- MAX_ACTION_POINTS=3, MIN_ACTION_POINTS=0, PLAYER_STARTING_HEALTH=3.
+
+---
+
+## 9. СКРЫТЫЕ ДОПУЩЕНИЯ
+
+1. LevelGenerator всегда использует legacy-алгоритм; других вариантов нет.
+2. RoomType веса (CHEST/AMBUSH/EMPTY=0) означают отсутствие сундуков/засад, если явно не поменять.
+3. Уровень зума 0 предполагает включённый follow; при выключенном follow центрирование прекращается.
+4. PlayerUI показывается только если `_player_ui_allowed` успели выставить (Turn FSM включает, Battle FSM вызывает напрямую без флага).
+5. DiceGameUI/BattleUI/PlayerUI зависят от наличия UIWindowQueue, но имеют fallback без очереди.
+6. Тело тайла кликабельно даже в скрытом состоянии, если маркеры не очищены.
+7. Активный игрок предполагается на актуальном тайле; несинхронность current_tile/previous_tile нарушит подсветку маркеров.
+
+---
+
+## 10. ДИАГРАММА СОСТОЯНИЙ (УПРОЩЁННО)
+```
+INIT (LevelManager.generate)
+  ↓ game_loaded_full
+INTRO (IntroCutScene)
+  ↓ intro_finished
+START (game_started)
+  ↓ _start_draw_lots
+DAY CYCLE:
+  TurnStateMachine:
+    PrepareTurn → CheckPlayerTurn → PlayerTurn → CanPlayerActAgain
+      ↘ PrepareEndTurn → EndTurn (next player or turns_completed)
+  При combat: BattleStateMachine (PrepareBattle → ... → EndBattle) возвращает в Check/PlayerTurn через combat_resolved
+  turns_completed → NIGHT
+NIGHT:
+  move_monsters_at_night → _start_draw_lots(increment_day=true) → DAY
+```
+
+---
+
+## 11. ПРОБЛЕМНЫЕ МЕСТА
+
+### Высокий риск
+1. Отсутствие обязательных callable для TurnStateMachine/BattleStateMachine приводит к зависанию состояний (нет UI/ввода/переходов).
+2. Если UIWindowQueue не создаёт окна и fallback-сцены недоступны, боевые фазы потеряют визуал и управление (dice/battle UI).
+
+### Средний риск
+3. Скрытые тайлы остаются кликабельными (input_ray_pickable=true) — можно открыть невидимые комнаты.
+4. Недостаток зелёных тайлов (fallback 1) размещает меньше игроков, чем total_players, без жёсткой ошибки.
+5. PathLines создают по экземпляру BoxMesh на связь; для крупных карт может быть тяжело по производительности.
+
+### Низкий риск
+6. Мягкие get_node_or_null без логов усложняют поиск проблем в сценах/камере/UI.
+
+---
+
+## 12. РЕЗЮМЕ
+
+Процедурный пошаговый roguelike на 3D-сетке, с ходовой FSM (TurnStateMachine), боевой FSM (BattleStateMachine) и центральным GameManager. Сильные стороны — модульность, явные состояния боя и ходов, fallback для UI. Слабые — зависимость от внешних callables/окон, кликабельность скрытых тайлов, отсутствие сундуков/засад из-за нулевых весов, возможная тяжесть PathLines.
+
+---
+
+## ИСТОРИЯ ДОКУМЕНТА
+
+- **v1.3** (06.02.2026) — Полный пересказ по актуальному коду: уточнены боевые фазы (run_dice_game без авто-показа PlayerUI), TurnStateMachine поток, генерация уровня с петлями/тупиками, зависимости и константы обновлены, убраны отсутствующие механики (сундуки/засады по весам 0).
+- **v1.2** (04.02.2026) — Описание боевой FSM, новый сигнал `battle_state_changed`, обновление UI/PlayerUI, веса RoomType и зависимости боя.
+# GAME DESIGN DOCUMENT (GDD)
+## Проект "NLN"
+
+---
+## ПРАВИЛА ОБНОВЛЕНИЯ
+
 Когда редактируется док выставлять в истории документа новую строчку с актуальными данными.
 Измененные структуры помечать, а рядом добавлять обновленные под текущую версию.
 Всегда должна быть информация по предыдущей версии и обновленная по текущей. Старую (2 версии до) - удаляем.
