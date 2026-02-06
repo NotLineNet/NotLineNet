@@ -938,8 +938,8 @@ func _dep_play_camera_hit(player_won: bool) -> void:
 	await _play_camera_hit_animation(player_won)
 
 
-func _dep_run_dice_game(player: Player, monster: Monster) -> Array:
-	return await _run_monster_battle(player, monster)
+func _dep_run_dice_game(player: Player, monster: Monster, restore_player_ui: bool = true) -> Array:
+	return await _run_monster_battle(player, monster, restore_player_ui)
 
 
 func _dep_apply_player_damage(player: Player, amount: int) -> bool:
@@ -1131,7 +1131,7 @@ func _wait_player_ui_shown() -> void:
 	if player_ui and not is_instance_valid(player_ui):
 		player_ui = null
 
-func _run_monster_battle(player: Player, monster: Monster) -> Array:
+func _run_monster_battle(player: Player, monster: Monster, restore_player_ui: bool = true) -> Array:
 	var participants_data: Array = []
 	participants_data.append(_build_battle_participant_data(player))
 	participants_data.append(_build_battle_participant_data(monster))
@@ -1145,7 +1145,7 @@ func _run_monster_battle(player: Player, monster: Monster) -> Array:
 			_apply_master_bonus(results, true)
 			if queue.has_method("close_window"):
 				queue.close_window("DICE_GAME_UI")
-			_restore_player_ui_if_hidden(true)
+			_restore_player_ui_if_hidden(restore_player_ui)
 			if results.size() == 0:
 				return _generate_rolls_from_data(participants_data, true)
 			return results
@@ -1167,7 +1167,7 @@ func _run_monster_battle(player: Player, monster: Monster) -> Array:
 	else:
 		results = _generate_rolls_from_data(participants_data, true)
 		_dice_ui_instance = null
-	_restore_player_ui_if_hidden(true)
+	_restore_player_ui_if_hidden(restore_player_ui)
 	if ui_instance and ui_instance.is_inside_tree():
 		ui_instance.queue_free()
 	if results.size() == 0:

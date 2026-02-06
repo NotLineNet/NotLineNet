@@ -50,7 +50,7 @@ func set_dependencies(deps: Dictionary) -> void:
 	# disable_player_input() -> void
 	# enable_player_input(player) -> void
 	# play_camera_hit(player_won: bool) -> awaitable void
-	# run_dice_game(player, monster) -> awaitable Array
+	# run_dice_game(player, monster, restore_player_ui := true) -> awaitable Array
 	# apply_player_damage(player, amount: int) -> bool (returns died)
 	# apply_run_penalty(player, tile) -> bool (returns died)
 	# handle_monster_death(monster) -> awaitable void

@@ -13,7 +13,7 @@ func enter(ctx: Dictionary) -> void:
 	fsm.call_dep("hide_player_ui")
 	fsm.call_dep("exit_battle_room_ui")
 	fsm.call_dep("disable_player_input")
-	var results: Array = await fsm.call_dep_await("run_dice_game", [player, monster])
+	var results: Array = await fsm.call_dep_await("run_dice_game", [player, monster, false])
 	var player_roll := _extract_roll(results, player)
 	var monster_roll := _extract_roll(results, monster)
 	var player_master := _extract_master_bonus(results, player)

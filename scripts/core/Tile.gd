@@ -11,8 +11,8 @@ enum RoomType {
 }
 
 const ROOM_TYPE_WEIGHTS := [
-	{"type": RoomType.MONSTER, "weight": 0},
-	{"type": RoomType.CHEST, "weight": 1},
+	{"type": RoomType.MONSTER, "weight": 1},
+	{"type": RoomType.CHEST, "weight": 0},
 	{"type": RoomType.AMBUSH, "weight": 0},
 	{"type": RoomType.EMPTY, "weight": 0}
 ]
