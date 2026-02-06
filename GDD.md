@@ -28,10 +28,10 @@ Main (Node3D)
 ├── CameraRoot (Node3D)
 │   └── CameraPivot (Node3D) + Camera3D
 └── UI (CanvasLayer)
-    ├── HUD(cheats) — нижняя панель
-    ├── PlayerUI (инстанс PlayerUI.tscn) — панель активного игрока
-    ├── MainHUD — портреты и основная информация
-    └── вспомогательные контроллеры (RoomUIController и др.)
+	├── HUD(cheats) — нижняя панель
+	├── PlayerUI (инстанс PlayerUI.tscn) — панель активного игрока
+	├── MainHUD — портреты и основная информация
+	└── вспомогательные контроллеры (RoomUIController и др.)
 ```
 
 ### Инстанцируемые сцены:
@@ -62,8 +62,8 @@ _start_day_cycle(increment_day=false)
   ├─ state = DAY, рефилл ОД (3)
   ├─ активный игрок = players[0], камера follow + пресет 0
   └─ TurnStateMachine.start_for_player(active_player)
-      PrepareTurn → CheckPlayerTurn → PlayerTurn → CanPlayerActAgain → PrepareEndTurn → EndTurn
-      └─ turns_completed → ночь
+	  PrepareTurn → CheckPlayerTurn → PlayerTurn → CanPlayerActAgain → PrepareEndTurn → EndTurn
+	  └─ turns_completed → ночь
   ↓ (в рамках дня могут запускаться бои через start_monster_battle)
 _start_night_cycle()
   ├─ state = NIGHT, скрытие PlayerUI
@@ -366,8 +366,8 @@ START (game_started)
   ↓ _start_draw_lots
 DAY CYCLE:
   TurnStateMachine:
-    PrepareTurn → CheckPlayerTurn → PlayerTurn → CanPlayerActAgain
-      ↘ PrepareEndTurn → EndTurn (next player or turns_completed)
+	PrepareTurn → CheckPlayerTurn → PlayerTurn → CanPlayerActAgain
+	  ↘ PrepareEndTurn → EndTurn (next player or turns_completed)
   При combat: BattleStateMachine (PrepareBattle → ... → EndBattle) возвращает в Check/PlayerTurn через combat_resolved
   turns_completed → NIGHT
 NIGHT:
