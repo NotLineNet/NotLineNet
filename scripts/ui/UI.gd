@@ -4,7 +4,6 @@ const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 
 @onready var reload_button: Button = $HBoxContainer/ReloadButton
 @onready var way_button: Button = $HBoxContainer/WayButton
-@onready var start_button: Button = $HBoxContainer/StartButton
 var player_ui_action_points: HBoxContainer
 var button_finish: Button
 var player_ui: Control
@@ -21,9 +20,6 @@ func _ready():
 	_ensure_player_ui_refs()
 	way_button.pressed.connect(_on_way_button_pressed)
 	reload_button.pressed.connect(_on_reload_button_pressed)
-	if start_button:
-		start_button.visible = true
-		start_button.pressed.connect(_on_start_button_pressed)
 	_update_way_button_text()
 	if button_finish:
 		button_finish.visible = false
@@ -33,8 +29,6 @@ func _ready():
 	_setup_game_manager_connections()
 
 func _on_gameplay_started() -> void:
-	if start_button:
-		start_button.visible = false
 	_highlight_active_portrait()
 
 func _on_action_points_changed(new_value: int):
@@ -156,10 +150,6 @@ func _on_add_card_button_pressed() -> void:
 	if not hand:
 		return
 	hand.add_card(card_data, true)
-
-func _on_start_button_pressed() -> void:
-	if game_manager:
-		game_manager.game_started()
 
 func set_day_label(day: int) -> void:
 	if day_label:

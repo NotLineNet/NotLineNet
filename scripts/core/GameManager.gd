@@ -20,6 +20,7 @@ const BATTLE_UI_SCENE_PATH := "res://scenes/ui/BattleUI.tscn"
 const Tile = preload("res://scripts/core/Tile.gd")
 enum GameState { INIT, INTRO, DRAW_LOTS, DAY, BATTLE, SWITCHING_TURN, NIGHT, WAITING_NEW_DAY }
 const INTRO_SCENE_PATH := "res://scenes/ui/IntroCutScene.tscn"
+const MENU_UI_SCENE_PATH := "res://scenes/main/MenuUI.tscn"
 const DICE_GAME_UI_SCENE_PATH := "res://scenes/ui/DiceGameUI.tscn"
 const BONUS_TYPE_DICE := "Dice"
 const BONUS_TYPE_LVL := "LVL"
@@ -37,6 +38,7 @@ var _active_player_index: int = -1
 var _intro_instance: IntroCutSceneController
 var _intro_started := false
 var _intro_completed := false
+var _menu_ui_instance: MenuUI
 var state: GameState = GameState.INIT : set = _set_state, get = _get_state
 var _dice_ui_instance
 var _battle_ui_instance
@@ -134,12 +136,12 @@ func _init_battle_state_machine() -> void:
 
 func _prepare_initial_ui_state() -> void:
 	if ui_layer:
-		ui_layer.visible = false
+		ui_layer.visible = true
 	_hide_player_ui()
 	if main_hud:
 		main_hud.visible = false
 	if hud_ui:
-		hud_ui.visible = true
+		hud_ui.visible = false
 
 
 func _ui_window_queue() -> Node:
@@ -367,6 +369,7 @@ func start_intro() -> void:
 	_log_state("кат сцена")
 	_prepare_intro_ui()
 	_prepare_intro_camera()
+	_spawn_menu_ui()
 	if _start_intro_via_queue():
 		return
 	_spawn_intro_cutscene()
@@ -386,7 +389,7 @@ func _prepare_intro_ui() -> void:
 	if main_hud:
 		main_hud.visible = false
 	if hud_ui:
-		hud_ui.visible = true
+		hud_ui.visible = false
 
 func _prepare_intro_camera() -> void:
 	_ensure_camera_nodes()
@@ -447,8 +450,6 @@ func intro_finished() -> void:
 	_ensure_camera_nodes()
 	_transfer_cutscene_camera_to_main()
 	_cleanup_intro_scene()
-	if ui_layer:
-		ui_layer.visible = true
 	if main_camera:
 		main_camera.current = true
 
@@ -471,6 +472,29 @@ func _cleanup_intro_scene() -> void:
 	if _intro_instance:
 		_intro_instance.queue_free()
 	_intro_instance = null
+
+func _spawn_menu_ui() -> void:
+	if _menu_ui_instance and is_instance_valid(_menu_ui_instance):
+		return
+	var scene := load(MENU_UI_SCENE_PATH) as PackedScene
+	if not scene:
+		push_error("GameManager: не удалось загрузить MenuUI сцену: %s" % MENU_UI_SCENE_PATH)
+		return
+	_menu_ui_instance = scene.instantiate() as MenuUI
+	if not _menu_ui_instance:
+		push_error("GameManager: не удалось инстансить MenuUI")
+		return
+	if ui_layer:
+		ui_layer.add_child(_menu_ui_instance)
+	else:
+		get_parent().add_child(_menu_ui_instance)
+	_menu_ui_instance.start_pressed.connect(_on_menu_start_pressed, CONNECT_ONE_SHOT)
+	_menu_ui_instance.play_show()
+
+func _on_menu_start_pressed() -> void:
+	_menu_ui_instance = null
+	_show_core_ui()
+	game_started()
 
 func _ensure_camera_nodes() -> void:
 	if not camera_root:

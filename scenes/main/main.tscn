@@ -111,8 +111,6 @@ tile_scene = ExtResource("2_k2fmo")
 player_scene = ExtResource("3_6q06x")
 circle_radius = 5
 
-[node name="Tile" parent="LevelManager" unique_id=828772496 instance=ExtResource("2_k2fmo")]
-
 [node name="PlayerManager" type="Node3D" parent="." unique_id=961077910]
 script = ExtResource("1_pmy5j")
 metadata/PlayersViewParams = [{
@@ -225,11 +223,6 @@ text = "День 1
 [node name="AddCardButton" type="Button" parent="UI/HUD(cheats)/HBoxContainer" unique_id=1576140273]
 layout_mode = 2
 text = "+card"
-
-[node name="StartButton" type="Button" parent="UI/HUD(cheats)/HBoxContainer" unique_id=1955715443]
-visible = false
-layout_mode = 2
-text = "Начать"
 
 [node name="MainHUD" type="Control" parent="UI" unique_id=1120368981]
 layout_mode = 3
