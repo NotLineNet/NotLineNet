@@ -1,6 +1,8 @@
 extends Node3D
 class_name CameraDrag
 
+signal zoom_level_changed(new_level: int)
+
 const NodeLocator = preload("res://scripts/core/NodeLocator.gd")
 
 # ===== ПАРАМЕТРЫ ДВИЖЕНИЯ =====
@@ -142,22 +144,22 @@ func _unhandled_input(event):
 	# Обработка колеса мыши для зума
 	elif event is InputEventMouseButton and camera and event.pressed:
 		var max_level: int = zoom_presets.size() - 1
-		var old_level: int = zoom_level
-		
+		var new_level: int = zoom_level
+
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			# Колесико вверх - камера ниже (уменьшаем zoom_level) - ИНВЕРТИРОВАНО
-			zoom_level = clamp(zoom_level - 1, 0, max_level)
+			new_level = clamp(zoom_level - 1, 0, max_level)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			# Колесико вниз - камера выше (увеличиваем zoom_level) - ИНВЕРТИРОВАНО
 			# Пресет 1 - камера выше, пресет 2 - камера еще выше
-			zoom_level = clamp(zoom_level + 1, 0, max_level)
-		
+			new_level = clamp(zoom_level + 1, 0, max_level)
+
 		# Логируем только если уровень изменился
-		if zoom_level != old_level:
-			_set_zoom_level(zoom_level, true)  # true = с интерполяцией
-			
+		if new_level != zoom_level:
+			_set_zoom_level(new_level, true)  # true = с интерполяцией
+
 			# Если перешли на пресет 0, центрируем камеру на тайле игрока
-			if zoom_level == 0:
+			if new_level == 0:
 				_center_camera_on_player_tile()
 
 # ===== УСТАНОВКА УРОВНЯ ЗУМА =====
@@ -165,7 +167,10 @@ func _set_zoom_level(level: int, interpolate: bool = true):
 	"""Устанавливает целевой уровень зума из пресета"""
 	if level < 0 or level >= zoom_presets.size():
 		return
-	
+
+	var old_level := zoom_level
+	zoom_level = level
+
 	# Получаем пресет для текущего уровня
 	var preset_dict: Dictionary = zoom_presets[level]
 	
@@ -187,6 +192,9 @@ func _set_zoom_level(level: int, interpolate: bool = true):
 		current_rotation_x = target_rotation_x
 		current_fov = target_fov
 		_apply_zoom_values()
+
+	if zoom_level != old_level:
+		emit_signal("zoom_level_changed", zoom_level)
 
 # ===== ПРИМЕНЕНИЕ ЗНАЧЕНИЙ ЗУМА =====
 func _apply_zoom_values():

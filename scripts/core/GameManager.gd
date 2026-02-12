@@ -53,6 +53,8 @@ var _turn_service
 var _player_service
 var _state_machine
 var _state_internal: GameState = GameState.INIT
+var _initial_camera_centering_done := false
+var _camera_zoom_hides_ui := false
 var _camera_service
 var _input_service
 
@@ -75,6 +77,7 @@ func _ready() -> void:
 	_state_machine = get_tree().root.get_node_or_null("GameStateMachine")
 	_camera_service = get_tree().root.get_node_or_null("CameraService")
 	_input_service = get_tree().root.get_node_or_null("InputService")
+	_ensure_camera_nodes()
 	_sync_state_machine()
 	_update_day_label()
 	await get_tree().process_frame
@@ -136,7 +139,7 @@ func _init_battle_state_machine() -> void:
 
 func _prepare_initial_ui_state() -> void:
 	if ui_layer:
-		ui_layer.visible = true
+		ui_layer.visible = not _camera_zoom_hides_ui
 	_hide_player_ui()
 	if main_hud:
 		main_hud.visible = false
@@ -384,7 +387,7 @@ func start_intro() -> void:
 
 func _prepare_intro_ui() -> void:
 	if ui_layer:
-		ui_layer.visible = true
+		ui_layer.visible = not _camera_zoom_hides_ui
 	_hide_player_ui()
 	if main_hud:
 		main_hud.visible = false
@@ -503,10 +506,30 @@ func _ensure_camera_nodes() -> void:
 		camera_pivot = camera_root.get_node_or_null("CameraPivot") as Node3D
 	if camera_pivot and not main_camera:
 		main_camera = camera_pivot.get_node_or_null("Camera3D") as Camera3D
+	if camera_root:
+		_bind_camera_zoom_signal()
+
+func _bind_camera_zoom_signal() -> void:
+	if not camera_root:
+		return
+	if not camera_root.is_connected("zoom_level_changed", Callable(self, "_on_camera_zoom_level_changed")):
+		camera_root.connect("zoom_level_changed", Callable(self, "_on_camera_zoom_level_changed"))
+	_update_ui_visibility_for_zoom(camera_root.zoom_level)
+
+func _on_camera_zoom_level_changed(level: int) -> void:
+	_update_ui_visibility_for_zoom(level)
+
+func _update_ui_visibility_for_zoom(level: int) -> void:
+	var should_hide := level != 0
+	if _camera_zoom_hides_ui == should_hide:
+		return
+	_camera_zoom_hides_ui = should_hide
+	if ui_layer:
+		ui_layer.visible = not should_hide
 
 func _show_core_ui() -> void:
 	if ui_layer:
-		ui_layer.visible = true
+		ui_layer.visible = not _camera_zoom_hides_ui
 	if main_hud:
 		main_hud.visible = true
 	if hud_ui:
@@ -776,10 +799,14 @@ func _focus_camera_on_player(player: Player) -> void:
 		return
 	if target_root.has_method("stop_auto_centering"):
 		target_root.stop_auto_centering()
+	var duration := GameConfig.CAMERA_MOVE_DURATION
+	if not _initial_camera_centering_done and current_game_day == 1 and active_player == player:
+		duration = GameConfig.FIRST_DAY_CAMERA_MOVE_DURATION
+		_initial_camera_centering_done = true
 	var tween := target_root.focus_on_tile(
 		player.current_tile,
 		GameConfig.CAMERA_DELAY,
-		GameConfig.CAMERA_MOVE_DURATION
+		duration
 	)
 	if tween:
 		await tween.finished

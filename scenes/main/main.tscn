@@ -158,10 +158,6 @@ zoom_presets = Array[Dictionary]([{
 "position": Vector3(0, 2, 0),
 "rotation_x": -33.0
 }, {
-"fov": 60.0,
-"position": Vector3(0, 13, 7),
-"rotation_x": -45.0
-}, {
 "fov": 90.0,
 "position": Vector3(0, 20, 4),
 "rotation_x": -70.0

@@ -8,6 +8,7 @@ const TILE_SIZE := 4
 const PLAYER_MOVE_DURATION := 0.2
 const CAMERA_MOVE_DURATION := 0.3
 const CAMERA_DELAY := 0.05
+const FIRST_DAY_CAMERA_MOVE_DURATION := 2 # Увеличенное время для первого фокуса камеры
 
 # === Очки действий ===
 const MAX_ACTION_POINTS := 3
