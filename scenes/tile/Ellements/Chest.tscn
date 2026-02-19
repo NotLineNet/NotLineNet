@@ -11,6 +11,7 @@ transform = Transform3D(0.70710677, 0, 0.70710677, 0, 1, 0, -0.70710677, 0, 0.70
 [node name="Sprite3D" type="Sprite3D" parent="." unique_id=1190327265]
 transform = Transform3D(1, 0, 0, 0, 0.98480767, 0.17364818, 0, -0.17364818, 0.98480767, 0.7, 0.3, -0.18)
 pixel_size = 0.005
+billboard = 1
 texture = ExtResource("1_ivbxj")
 
 [node name="UI" type="Sprite3D" parent="." unique_id=1325262386]

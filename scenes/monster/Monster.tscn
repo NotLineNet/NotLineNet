@@ -98,4 +98,5 @@ libraries/ = SubResource("AnimationLibrary_uhfyf")
 [node name="BodyImage" type="Sprite3D" parent="." unique_id=830632691]
 transform = Transform3D(0.9659258, 0.044943456, -0.25488698, 0, 0.9848075, 0.17364812, 0.25881892, -0.1677312, 0.951251, 0.9, 0.6, 0)
 pixel_size = 0.003
+billboard = 1
 texture = ExtResource("2_ldxdc")
